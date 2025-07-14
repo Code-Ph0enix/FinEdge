@@ -73,8 +73,8 @@ Managing personal finance has become increasingly complex, with data scattered a
 
 ## 👨‍💻 Contributors
 
-- Rohit Deshpande – [GitHub](https://github.com/)  
-- Shubh Jalui – [GitHub](https://github.com/)  
+- Rohit Deshpande – [GitHub](https://github.com/irohitdeshpande)  
+- Shubh Jalui – [GitHub](https://github.com/sJalui)  
 - Eeshanya Joshi – [GitHub](https://github.com/Code-Ph0enix)
 
 ---
