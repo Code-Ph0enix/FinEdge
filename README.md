@@ -1,17 +1,10 @@
-# 💰 Wealth Wise 🚀  
+# 💰 FinEdge 🚀  
 
-**Wealth Wise** is a **comprehensive AI-powered personal finance advisor** that combines various intelligent features including **chatbot capabilities, financial analysis, and much more**. Built with a **modern tech stack**, it features a **React frontend** and a **Python Flask backend**.  
-
-## 📽️ Demo
-
-<video width="640" height="360" controls>
-  <source src="demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+**FinEdge** is a **comprehensive AI-powered personal finance advisor** that combines various intelligent features including **chatbot capabilities, financial analysis, and much more**. Built with a **modern tech stack**, it features a **React frontend** and a **Python Flask backend**.  
 
 ---
 
-## 🌟 Features  
+## 🌟 Proposed Features  
 
 ✅ **AI-powered reAct agent** 🤖 with **LLM integration**  
 📊 **Financial analysis & path planning** 📈  
@@ -30,7 +23,7 @@
 
 ---  
 
-## 🛠️ Tech Stack  
+## 🛠️ Proposed Tech Stack  
 
 ### 🎨 Frontend  
 ⚛️ **React (TypeScript)**  
@@ -128,28 +121,6 @@
 ---  
 
 ## 📁 Project Structure  
-
-```
-WealthWise/
-├── backend/
-│   ├── app.py              # Main Flask application
-│   ├── agent.py            # AI agent implementation
-│   ├── gemini_fin_path.py  # Financial analysis module
-│   ├── scheduler.py        # Task scheduling
-│   └── tools/              # Utility functions and tools
-├── frontend/
-│   ├── src/               # React source files
-│   ├── public/            # Static assets
-│   └── package.json       # Frontend dependencies
-```
-
----  
-
-## 👥 Authors  
-
-- 🚀 [Meet Patel](https://www.linkedin.com/in/meet244/)  
-- 🤖 [Mohit Nippanikar](https://www.linkedin.com/in/mohitnippanikar/)  
-- 📈 [Rachit Chheda](https://www.linkedin.com/in/rachit-chheda-a1224124a/)  
 
 ---  
 

@@ -29,7 +29,7 @@ const DashboardTour = ({ children }: DashboardTourProps) => {
   const steps = [
     {
       selector: ".tour-logo",
-      content: "Welcome to WealthWise! This is your personal financial dashboard.",
+      content: "Welcome to FinEdge! This is your personal financial dashboard.",
     },
     {
       selector: ".tour-portfolio",
