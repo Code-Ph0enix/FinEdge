@@ -38,13 +38,6 @@ agent = create_react_agent(llm, tools, prompt_template)
 # Create an agent executor by passing in the agent and tools
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
-# # Get the current time
-# x = agent_executor.invoke({"input": query})
-
-# # print the result
-# print(x)
-# print('\n\n\n\n\n')
-
 while True:
     # Get the user input
     user_input = input("You: ")
