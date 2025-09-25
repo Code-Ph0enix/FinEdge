@@ -4,14 +4,14 @@
             "name": "Bank Account",
             "type": "Cash",
             "value": "10000",
-            "dateupdated": "2020-01-01",
+            "dateupdated": "2025-01-01",
             "quantity": "1"
         },
         {
             "name": "Reliance Industries",
             "type": "Stock",
             "value": "50000",
-            "dateupdated": "2020-01-01",
+            "dateupdated": "2025-01-01",
             "quantity": "3"
         }
     ],
@@ -21,16 +21,16 @@
             "type": "Loan",
             "amount": "5000",
             "interestrateanually": "8",
-            "duedate": "2023-12-01",
-            "startdate": "2022-01-15"
+            "duedate": "2025-12-01",
+            "startdate": "2024-01-15"
         },
         {
             "name": "Credit Card",
             "type": "Credit Card",
             "amount": "2000",
             "interestrateanually": "18",
-            "duedate": "2023-12-01",
-            "startdate": "2022-01-15"
+            "duedate": "2025-12-01",
+            "startdate": "2024-01-15"
         }
     ],
     "income": [
