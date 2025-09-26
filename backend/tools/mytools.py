@@ -48,17 +48,19 @@ def power(a: int, b: int) -> int:
 
 # ======================================== USEFUL TOOLS ========================================
 from langchain_core.tools import Tool
-from langchain_experimental.utilities import PythonREPL
+# from langchain_experimental.utilities import PythonREPL
+# from langchain.tools.python.tool import PythonREPL
+
 from langchain_community.tools import DuckDuckGoSearchRun
 
 search = DuckDuckGoSearchRun()
 
-python_repl = PythonREPL()
-repl_tool = Tool(
-    name="python_repl",
-    description="A Python shell. Use this to execute python commands. Input should be a valid python command. If you want to see the output of a value, you should print it out with `print(...)`.",
-    func=python_repl.run,
-)
+# python_repl = PythonREPL()
+# repl_tool = Tool(
+#     name="python_repl",
+#     description="A Python shell. Use this to execute python commands. Input should be a valid python command. If you want to see the output of a value, you should print it out with `print(...)`.",
+#     func=python_repl.run,
+# )
 
 # ======================================== FINANCE TOOLS ========================================
 import yfinance as yf
