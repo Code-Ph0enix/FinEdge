@@ -32,8 +32,7 @@ const AuthComponent = () => {
         <SignIn 
           routing="path"
           path="/sign-in"
-          redirectUrl="/portfolio"
-          afterSignInUrl="/portfolio"
+          forceRedirectUrl="/portfolio"
           appearance={{
             elements: {
               rootBox: "w-full max-w-md",
@@ -50,8 +49,8 @@ const AuthComponent = () => {
         <SignUp 
           routing="path"
           path="/sign-up"
-          redirectUrl="/portfolio"
-          afterSignUpUrl="/portfolio"
+          forceRedirectUrl="/portfolio"
+          //afterSignUpUrl="/portfolio"
           appearance={{
             elements: {
               rootBox: "w-full max-w-md",
@@ -69,4 +68,4 @@ const AuthComponent = () => {
   );
 };
 
-export default AuthComponent; 
+export default AuthComponent;

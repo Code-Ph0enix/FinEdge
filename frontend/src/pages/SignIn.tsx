@@ -6,7 +6,7 @@ const ClerkSignInPage = () => {
       <SignIn 
         routing="path" 
         path="/sign-in" 
-        redirectUrl="/portfolio"
+        forceRedirectUrl="/portfolio"
         appearance={{
           elements: {
             rootBox: "w-full max-w-md",
