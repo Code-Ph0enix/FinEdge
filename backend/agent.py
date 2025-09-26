@@ -9,6 +9,7 @@ from tools.mytools import *
 # no warnings
 import warnings
 import sys
+import os
 warnings.filterwarnings("ignore")
 
 
@@ -19,15 +20,20 @@ warnings.filterwarnings("ignore")
 load_dotenv()
 
 # Choose the LLM to use
-llm = ChatGroq(model="llama-3.3-70b-versatile")
-
-# llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp")
+# Using Gemini 2.0 Flash with strict ReAct formatting
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash-exp",
+    google_api_key=os.environ.get("GEMINI_API_KEY"),
+    temperature=0,
+    max_output_tokens=1024
+)
+# llm = ChatGroq(model="llama-3.3-70b-versatile")
 
 # set my message
 query = """ Should I invest in Cipla pharmaceuticals? """
 
-# set the tools
-tools = [add, subtract, multiply, divide, power, search, repl_tool, get_historical_price, get_current_price, get_company_info, schedule_task, check_system_time]
+# set the tools (including search for financial research)
+tools = [add, subtract, multiply, divide, power, search, repl_tool, get_historical_price, get_current_price, get_company_info, check_system_time]
 # print(tools)
 # Get the react prompt template
 prompt_template = get_react_prompt_template()
@@ -36,7 +42,14 @@ prompt_template = get_react_prompt_template()
 agent = create_react_agent(llm, tools, prompt_template)
 
 # Create an agent executor by passing in the agent and tools
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+agent_executor = AgentExecutor(
+    agent=agent, 
+    tools=tools, 
+    verbose=True, 
+    handle_parsing_errors=True,
+    max_iterations=3,  # Limit iterations to prevent infinite loops
+    return_intermediate_steps=False
+)
 
 
 def get_agent_response(user_input: str) -> str:
@@ -44,8 +57,8 @@ def get_agent_response(user_input: str) -> str:
         response = agent_executor.invoke({"input": user_input})
         return response["output"]
     except Exception as e:
-        # print("Error:", e)
-        return f"Sorry, I couldn't understand that. Please try again."
+        print("Error:", e)  # Enable error printing to see what's wrong
+        return f"Sorry, I encountered an error: {str(e)}"
 
 # def run_agent_final()
 

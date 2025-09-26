@@ -45,12 +45,18 @@ def agent():
     try:
         print(f"Processing input: {inp}")
         
-        # Add timeout to prevent hanging
+        # Add timeout to prevent hanging - use full path to ensure correct environment
+        import os
+        import sys
+        python_executable = sys.executable  # Use the same Python that's running Flask
+        agent_path = os.path.join(os.path.dirname(__file__), 'agent.py')
+        
         process = subprocess.Popen(
-            ['python', 'agent.py', inp], 
+            [python_executable, agent_path, inp], 
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE,
-            universal_newlines=True
+            universal_newlines=True,
+            cwd=os.path.dirname(__file__)  # Set working directory to backend folder
         )
         
         output = []
@@ -76,23 +82,38 @@ def agent():
             else:
                 stderr = ""
                 logger.error("process.stderr is None")
-            logger.error(f"Agent script failed: {stderr}")
-            return jsonify({'error': 'Agent processing failed'}), 500
+            logger.error(f"Agent script failed with return code {return_code}")
+            logger.error(f"STDERR: {stderr}")
+            logger.error(f"STDOUT: {output_str}")
+            return jsonify({
+                'error': 'Agent processing failed', 
+                'details': stderr[:500],  # Include error details for debugging
+                'return_code': return_code
+            }), 500
+        
+        # Debug: Log the full output to see what we received
+        logger.info(f"Agent output: {output_str[:500]}...")  # Log first 500 chars
         
         # Use regex to extract the response between <Response> tags
         final_answer = re.search(r'<Response>(.*?)</Response>', output_str, re.DOTALL)
         if final_answer:
             final_answer = final_answer.group(1).strip()
         else:
-            # Fallback to backup AI if available
-            if jgaad_chat_with_gemini:
-                try:
-                    final_answer = jgaad_chat_with_gemini(inp, output_str)
-                except Exception as e:
-                    logger.error(f"Backup AI failed: {e}")
-                    final_answer = "Error processing request"
+            logger.warning(f"No <Response> tags found in output. Full output: {output_str}")
+            # Try to extract the agent's final answer differently
+            if "Final Answer:" in output_str:
+                # Extract everything after "Final Answer:"
+                final_answer = output_str.split("Final Answer:")[-1].strip()
             else:
-                final_answer = "No response generated"
+                # Fallback to backup AI if available
+                if jgaad_chat_with_gemini:
+                    try:
+                        final_answer = jgaad_chat_with_gemini(inp, output_str)
+                    except Exception as e:
+                        logger.error(f"Backup AI failed: {e}")
+                        final_answer = "Error processing request"
+                else:
+                    final_answer = f"Agent ran but no proper response found. Output: {output_str[-200:]}"
         
         return jsonify({'output': final_answer, 'thought': output_str})
         

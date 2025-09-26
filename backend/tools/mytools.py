@@ -92,7 +92,7 @@ def get_ticker_from_company(company_name: str) -> str:
     try:
         symbol = data['quotes'][0]['symbol']
     except:
-        return Exception("Company name not found, try again by providing a valid company name.")
+        raise Exception("Company name not found, try again by providing a valid company name.")
     return symbol
 
 # 1. Fetch Historical Data

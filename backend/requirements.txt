@@ -11,3 +11,4 @@ langchain_experimental
 google-generativeai
 yfinance
 requests
+ddgs
