@@ -1,34 +1,69 @@
+"""
+FinEdge Backend API
+
+A comprehensive financial platform backend providing:
+- AI-powered financial agent endpoints
+- Real-time market data from 25+ indices
+- Financial planning and analysis tools
+- Chatbot integration with advanced AI models
+
+Author: FinEdge Team
+Version: 1.0.0
+"""
+
+# Standard library imports
+import logging
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime
+
+# Third-party imports
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import subprocess
-import re
-import logging
+import yfinance as yf
+import pandas as pd
 
-# Import specific items instead of wildcard
+# Local imports
 try:
     from onboard import bank_data, mf_data
 except ImportError:
-    print("Warning: Could not import onboard data")
+    logging.warning("Could not import onboard data")
     bank_data, mf_data = {}, {}
 
 try:
     from jgaad_ai_agent_backup import jgaad_chat_with_gemini
     import gemini_fin_path
 except ImportError:
-    print("Warning: Could not import AI modules")
+    logging.warning("Could not import AI modules")
     jgaad_chat_with_gemini = None
     gemini_fin_path = None
 
+# Initialize Flask application
 app = Flask(__name__)
 CORS(app)
 
-# Basic logging setup
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify("HI")
+    """Health check endpoint for the FinEdge API."""
+    return jsonify({
+        "status": "healthy",
+        "message": "FinEdge API is running",
+        "version": "1.0.0",
+        "endpoints": [
+            "/agent - AI Financial Agent",
+            "/api/market-summary - Market Data",
+            "/ai-financial-path - Financial Planning"
+        ]
+    })
 
 # =================== DYNAMIC APIS ===================
 @app.route('/agent', methods=['POST'])
@@ -168,6 +203,290 @@ def AutoMFData():
 
 # =================== CONNECTION APIS ===================
 # Add your connection APIs here
+
+# =================== REAL-TIME STOCK APIs ===================
+
+@app.route('/api/stock-price', methods=['POST'])
+def get_stock_price():
+    """Get current stock prices for multiple tickers"""
+    try:
+        data = request.get_json()
+        tickers = data.get('tickers', [])
+        
+        if not tickers:
+            return jsonify({'error': 'No tickers provided'}), 400
+        
+        prices = []
+        for ticker in tickers:
+            try:
+                stock = yf.Ticker(ticker)
+                hist = stock.history(period='1d')
+                if not hist.empty:
+                    current_price = hist['Close'].iloc[-1]
+                    prices.append({
+                        'symbol': ticker,
+                        'price': round(float(current_price), 2),
+                        'timestamp': datetime.now().isoformat()
+                    })
+                else:
+                    prices.append({
+                        'symbol': ticker,
+                        'price': None,
+                        'error': 'No data available'
+                    })
+            except Exception as e:
+                prices.append({
+                    'symbol': ticker,
+                    'price': None,
+                    'error': str(e)
+                })
+        
+        return jsonify({'prices': prices})
+    
+    except Exception as e:
+        logger.error(f"Error fetching stock prices: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/nifty-gainers', methods=['GET'])
+def get_nifty_gainers():
+    """Get top NIFTY gainers"""
+    try:
+        count = request.args.get('count', 10, type=int)
+        
+        # NIFTY 50 symbols (major ones)
+        nifty_symbols = [
+            'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'HINDUNILVR.NS',
+            'ICICIBANK.NS', 'KOTAKBANK.NS', 'SBIN.NS', 'BHARTIARTL.NS', 'ITC.NS',
+            'ASIANPAINT.NS', 'LT.NS', 'AXISBANK.NS', 'MARUTI.NS', 'NESTLEIND.NS',
+            'HCLTECH.NS', 'WIPRO.NS', 'ULTRACEMCO.NS', 'TATAMOTORS.NS', 'POWERGRID.NS'
+        ]
+        
+        gainers = []
+        for symbol in nifty_symbols[:count]:
+            try:
+                stock = yf.Ticker(symbol)
+                hist = stock.history(period='2d')
+                if len(hist) >= 2:
+                    current_price = hist['Close'].iloc[-1]
+                    prev_price = hist['Close'].iloc[-2]
+                    per_change = ((current_price - prev_price) / prev_price) * 100
+                    
+                    gainers.append({
+                        'symbol': symbol.replace('.NS', ''),
+                        'ltp': round(float(current_price), 2),
+                        'netChng': round(float(current_price - prev_price), 2),
+                        'perChange': round(float(per_change), 2)
+                    })
+            except Exception as e:
+                logger.error(f"Error fetching data for {symbol}: {e}")
+                continue
+        
+        # Sort by percentage change (gainers first)
+        gainers.sort(key=lambda x: x['perChange'], reverse=True)
+        
+        return jsonify(gainers[:count])
+    
+    except Exception as e:
+        logger.error(f"Error fetching NIFTY gainers: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/portfolio-analysis', methods=['POST'])
+def get_portfolio_analysis():
+    """Analyze portfolio profit/loss"""
+    try:
+        data = request.get_json()
+        stocks = data.get('stocks', [])
+        
+        if not stocks:
+            return jsonify({'error': 'No stocks provided'}), 400
+        
+        portfolio_analysis = []
+        total_profit_loss = 0
+        
+        for stock in stocks:
+            symbol = stock.get('symbol')
+            bought_price = float(stock.get('boughtPrice', 0))
+            quantity = int(stock.get('quantity', 0))
+            
+            try:
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period='1d')
+                
+                if not hist.empty:
+                    current_price = float(hist['Close'].iloc[-1])
+                    profit_loss = (current_price - bought_price) * quantity
+                    total_profit_loss += profit_loss
+                    
+                    portfolio_analysis.append({
+                        'symbol': symbol,
+                        'boughtPrice': bought_price,
+                        'currentPrice': round(current_price, 2),
+                        'quantity': quantity,
+                        'profitOrLoss': round(profit_loss, 2),
+                        'totalValue': round(current_price * quantity, 2)
+                    })
+                else:
+                    portfolio_analysis.append({
+                        'symbol': symbol,
+                        'error': 'No current price data available'
+                    })
+                    
+            except Exception as e:
+                portfolio_analysis.append({
+                    'symbol': symbol,
+                    'error': str(e)
+                })
+        
+        return jsonify({
+            'stocks': portfolio_analysis,
+            'totalProfitOrLoss': round(total_profit_loss, 2),
+            'timestamp': datetime.now().isoformat()
+        })
+    
+    except Exception as e:
+        logger.error(f"Error analyzing portfolio: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+def get_market_category(index_name):
+    """Categorize market indices for better organization"""
+    if index_name in ['NIFTY 50', 'SENSEX', 'BANK NIFTY', 'NIFTY IT', 'NIFTY AUTO', 'NIFTY PHARMA', 
+                      'NIFTY FMCG', 'NIFTY METAL', 'NIFTY ENERGY', 'NIFTY REALTY', 'NIFTY MEDIA', 
+                      'NIFTY MIDCAP', 'NIFTY SMALLCAP']:
+        return 'Indian Indices'
+    elif index_name in ['S&P 500', 'NASDAQ', 'DOW JONES', 'FTSE 100', 'DAX', 'NIKKEI', 'HANG SENG', 'SHANGHAI']:
+        return 'International Indices'
+    elif index_name in ['GOLD', 'CRUDE OIL']:
+        return 'Commodities'
+    elif index_name in ['USD/INR']:
+        return 'Currency'
+    elif index_name in ['BITCOIN']:
+        return 'Cryptocurrency'
+    else:
+        return 'Other'
+
+
+
+@app.route('/api/market-summary', methods=['GET'])
+def get_market_summary():
+    """Get comprehensive market indices summary - 25+ major indices for marquee display"""
+    try:
+        # Indian-focused market data with major Indian brands and select international indices
+        indices = {
+            # Major Indian Indices (Priority)
+            'NIFTY 50': '^NSEI',
+            'SENSEX': '^BSESN',
+            'BANK NIFTY': '^NSEBANK',
+            'NIFTY IT': '^CNXIT',
+            'NIFTY AUTO': '^CNXAUTO',
+            'NIFTY PHARMA': '^CNXPHARMA',
+            'NIFTY FMCG': '^CNXFMCG',
+            'NIFTY METAL': '^CNXMETAL',
+            'NIFTY ENERGY': '^CNXENERGY',
+            'NIFTY REALTY': '^CNXREALTY',
+            'NIFTY MEDIA': '^CNXMEDIA',
+            'NIFTY MIDCAP': '^NSEMDCP50',
+            'NIFTY SMALLCAP': '^NSESMLCP250',
+            'NIFTY NEXT 50': '^NSMIDCP',
+            'NIFTY PSU BANK': '^CNXPSUBANK',
+            'NIFTY PRIVATE BANK': '^CNXPVTBANK',
+            'NIFTY FINANCE': '^CNXFINANCE',
+            'NIFTY INFRA': '^CNXINFRA',
+            
+            # Top Indian Companies (Individual Stocks)
+            'RELIANCE': 'RELIANCE.NS',
+            'TCS': 'TCS.NS',
+            'HDFC BANK': 'HDFCBANK.NS',
+            'INFOSYS': 'INFY.NS',
+            'ICICI BANK': 'ICICIBANK.NS',
+            'BHARTI AIRTEL': 'BHARTIARTL.NS',
+            'SBI': 'SBIN.NS',
+            'LT': 'LT.NS',
+            'ITC': 'ITC.NS',
+            'HCLTECH': 'HCLTECH.NS',
+            'WIPRO': 'WIPRO.NS',
+            'MARUTI SUZUKI': 'MARUTI.NS',
+            'ASIAN PAINTS': 'ASIANPAINT.NS',
+            'BAJAJ FINANCE': 'BAJFINANCE.NS',
+            'TITAN': 'TITAN.NS',
+            
+            # Select International (Limited)
+            'S&P 500': '^GSPC',
+            'NASDAQ': '^IXIC',
+            'NIKKEI': '^N225',
+            
+            # Essential Commodities & Currency
+            'USD/INR': 'USDINR=X',
+            'GOLD': 'GC=F',
+            'CRUDE OIL': 'CL=F'
+        }
+        
+        market_data = {}
+        successful_fetches = 0
+        
+        for index_name, symbol in indices.items():
+            try:
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period='2d')
+                
+                if len(hist) >= 2:
+                    current_value = hist['Close'].iloc[-1]
+                    prev_value = hist['Close'].iloc[-2]
+                    change = current_value - prev_value
+                    per_change = (change / prev_value) * 100
+                    
+                    # Format values based on type
+                    if 'USD/INR' in index_name:
+                        formatted_value = round(float(current_value), 4)
+                    elif index_name in ['GOLD', 'CRUDE OIL', 'BITCOIN']:
+                        formatted_value = round(float(current_value), 2)
+                    else:
+                        formatted_value = round(float(current_value), 2)
+                    
+                    market_data[index_name] = {
+                        'value': formatted_value,
+                        'change': round(float(change), 2),
+                        'perChange': round(float(per_change), 2),
+                        'timestamp': datetime.now().isoformat(),
+                        'symbol': symbol,
+                        'category': get_market_category(index_name)
+                    }
+                    successful_fetches += 1
+                    
+                elif len(hist) >= 1:
+                    # If only 1 day of data, show without change
+                    current_value = hist['Close'].iloc[-1]
+                    
+                    if 'USD/INR' in index_name:
+                        formatted_value = round(float(current_value), 4)
+                    elif index_name in ['GOLD', 'CRUDE OIL', 'BITCOIN']:
+                        formatted_value = round(float(current_value), 2)
+                    else:
+                        formatted_value = round(float(current_value), 2)
+                    
+                    market_data[index_name] = {
+                        'value': formatted_value,
+                        'change': 0,
+                        'perChange': 0,
+                        'timestamp': datetime.now().isoformat(),
+                        'symbol': symbol,
+                        'category': get_market_category(index_name)
+                    }
+                    successful_fetches += 1
+                    
+            except Exception as e:
+                logger.error(f"Error fetching {index_name} ({symbol}): {e}")
+                continue
+        
+        logger.info(f"Successfully fetched {successful_fetches}/{len(indices)} market indices")
+        return jsonify({
+            'indices': market_data,
+            'totalIndices': successful_fetches,
+            'lastUpdated': datetime.now().isoformat()
+        })
+    
+    except Exception as e:
+        logger.error(f"Error fetching market summary: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 # =================== BOTS ===================
 # Add your bot endpoints here

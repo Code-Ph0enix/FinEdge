@@ -5,19 +5,20 @@ import {
 } from 'recharts';
 import { 
   Wallet, TrendingUp, ArrowUpRight, DollarSign, 
-  Target, AlertTriangle, Shield
+  Target, AlertTriangle, Shield, Loader2
 } from 'lucide-react';
 import {
-  portfolioSummary,
+  portfolioSummary as staticPortfolioSummary,
   monthlyData,
   assetAllocation,
-  performanceData,
+  performanceData as staticPerformanceData,
   liabilities as liabilitiesData,
   recentActivity as recentActivityData,
   investmentGoals,
   riskMetrics,
-  marketIndicators
-} from '../data/portfolioData';
+  getPortfolioSummary,
+  getPerformanceData
+} from '../data/dynamicPortfolioData';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
@@ -56,6 +57,39 @@ interface RiskMetricsWithScore extends RiskMetrics {
 const Portfolio = () => {
   const liabilities = liabilitiesData as Liability[];
   const recentActivity = recentActivityData as Activity[];
+  
+  // Real-time data state
+  const [portfolioSummary, setPortfolioSummary] = useState(staticPortfolioSummary);
+  const [performanceData, setPerformanceData] = useState(staticPerformanceData);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Function to refresh portfolio data
+  const refreshData = async () => {
+    setIsLoading(true);
+    
+    try {
+      const [newPortfolioSummary, newPerformanceData] = await Promise.all([
+        getPortfolioSummary(),
+        getPerformanceData()
+      ]);
+      
+      setPortfolioSummary(newPortfolioSummary);
+      setPerformanceData(newPerformanceData);
+    } catch (err) {
+      console.error('Error refreshing portfolio data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Auto-refresh every 2 minutes
+  useEffect(() => {
+    refreshData();
+    const interval = setInterval(refreshData, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
+
 
   // Format currency helper - Updated for INR
   const formatCurrency = (value: number) => {
@@ -67,12 +101,6 @@ const Portfolio = () => {
   };
 
   // Animation variants
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.5 }
-  };
-
   const scaleIn = {
     initial: { scale: 0.9, opacity: 0 },
     animate: { scale: 1, opacity: 1 },
@@ -122,27 +150,7 @@ const Portfolio = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Market Indicators */}
-      <motion.div 
-        className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm"
-        {...fadeInUp}
-      >
-        <div className="flex space-x-4 overflow-x-auto">
-          {marketIndicators.map((indicator) => (
-            <div key={indicator.name} className="flex items-center space-x-2 min-w-fit">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                {/* Update to Indian market indicators */}
-                {indicator.name.replace('S&P 500', 'NIFTY 50').replace('NASDAQ', 'SENSEX').replace('DOW', 'BANK NIFTY')}
-              </span>
-              <span className={`text-sm font-medium ${
-                indicator.trend === 'up' ? 'text-green-500' :
-                indicator.trend === 'down' ? 'text-red-500' :
-                'text-gray-500'
-              }`}>{indicator.value}</span>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+
 
       {/* Main Portfolio Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -164,11 +172,24 @@ const Portfolio = () => {
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.8, type: "spring" }}
             >
-              <CountingNumber value={portfolioSummary.totalValue} />
-            </motion.h1>
+              {isLoading ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-12 w-12 animate-spin text-indigo-500 mr-4" />
+                </div>
+              ) : (
+                <CountingNumber value={portfolioSummary.totalValue} />
+              )}            </motion.h1>
             <div className="flex items-center">
-              <ArrowUpRight className="h-6 w-6 text-green-500" />
-              <span className="text-green-500 text-xl font-semibold ml-1">+{portfolioSummary.monthlyChange}%</span>
+              {portfolioSummary.monthlyChange >= 0 ? (
+                <ArrowUpRight className="h-6 w-6 text-green-500" />
+              ) : (
+                <ArrowUpRight className="h-6 w-6 text-red-500 transform rotate-180" />
+              )}
+              <span className={`text-xl font-semibold ml-1 ${
+                portfolioSummary.monthlyChange >= 0 ? 'text-green-500' : 'text-red-500'
+              }`}>
+                {portfolioSummary.monthlyChange >= 0 ? '+' : ''}{portfolioSummary.monthlyChange}%
+              </span>
               <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">vs last month</span>
             </div>
           </div>
@@ -176,20 +197,24 @@ const Portfolio = () => {
           {/* Quick Stats */}
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Daily Change</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Monthly Returns</p>
               <div className="flex items-center mt-1">
-                <ArrowUpRight className="h-4 w-4 text-green-500" />
+                {portfolioSummary.monthlyReturns >= 0 ? (
+                  <ArrowUpRight className="h-4 w-4 text-green-500" />
+                ) : (
+                  <ArrowUpRight className="h-4 w-4 text-red-500 transform rotate-180" />
+                )}
                 <span className="text-lg font-semibold text-gray-900 dark:text-white ml-1">
-                  +$1,234
+                  {formatCurrency(portfolioSummary.monthlyReturns)}
                 </span>
               </div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-              <p className="text-sm text-gray-500 dark:text-gray-400">YTD Return</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Risk Score</p>
               <div className="flex items-center mt-1">
-                <ArrowUpRight className="h-4 w-4 text-green-500" />
+                <Shield className="h-4 w-4 text-indigo-500" />
                 <span className="text-lg font-semibold text-gray-900 dark:text-white ml-1">
-                  +18.2%
+                  {portfolioSummary.riskScore}/100
                 </span>
               </div>
             </div>

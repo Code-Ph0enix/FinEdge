@@ -12,3 +12,6 @@ google-generativeai
 yfinance
 requests
 ddgs
+pandas
+numpy
+datetime
