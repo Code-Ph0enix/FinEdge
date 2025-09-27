@@ -14,6 +14,7 @@ export interface Message {
   timestamp: Date;
   isThinking?: boolean;
   isTyping?: boolean;
+  isSystemMessage?: boolean;
 }
 
 // === Market Data Types ===
@@ -312,6 +313,7 @@ export interface SpeechModalProps {
 export interface ChatHeaderProps {
   title?: string;
   subtitle?: string;
+  onClearChat?: () => void;
 }
 
 /**

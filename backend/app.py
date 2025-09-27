@@ -33,11 +33,14 @@ except ImportError:
     bank_data, mf_data = {}, {}
 
 try:
-    from jgaad_ai_agent_backup import jgaad_chat_with_gemini
+    from jgaad_ai_agent_backup import jgaad_chat_with_gemini, clear_chat_session, get_active_sessions, get_chat_history
     import gemini_fin_path
 except ImportError:
     logging.warning("Could not import AI modules")
     jgaad_chat_with_gemini = None
+    clear_chat_session = None
+    get_active_sessions = None
+    get_chat_history = None
     gemini_fin_path = None
 
 # Initialize Flask application
@@ -69,6 +72,7 @@ def home():
 @app.route('/agent', methods=['POST'])
 def agent():
     inp = request.form.get('input')
+    session_id = request.form.get('session_id', 'default')  # Get session ID from request
     
     if not inp:
         return jsonify({'error': 'No input provided'}), 400
@@ -143,7 +147,7 @@ def agent():
                 # Fallback to backup AI if available
                 if jgaad_chat_with_gemini:
                     try:
-                        final_answer = jgaad_chat_with_gemini(inp, output_str)
+                        final_answer = jgaad_chat_with_gemini(inp, output_str, session_id)
                     except Exception as e:
                         logger.error(f"Backup AI failed: {e}")
                         final_answer = "Error processing request"
@@ -486,6 +490,64 @@ def get_market_summary():
     
     except Exception as e:
         logger.error(f"Error fetching market summary: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+# =================== SESSION MANAGEMENT ===================
+
+@app.route('/clear-chat-session', methods=['POST'])
+def clear_chat_session_endpoint():
+    """Clear a specific chat session"""
+    try:
+        session_id = request.form.get('session_id', 'default')
+        
+        if clear_chat_session:
+            success = clear_chat_session(session_id)
+            return jsonify({
+                'success': success,
+                'message': f'Session {session_id} cleared successfully' if success else f'Session {session_id} not found'
+            })
+        else:
+            return jsonify({'error': 'Session management not available'}), 503
+            
+    except Exception as e:
+        logger.error(f"Error clearing chat session: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/active-sessions', methods=['GET'])
+def get_active_sessions_endpoint():
+    """Get list of all active chat sessions"""
+    try:
+        if get_active_sessions:
+            sessions = get_active_sessions()
+            return jsonify({
+                'active_sessions': sessions,
+                'count': len(sessions)
+            })
+        else:
+            return jsonify({'error': 'Session management not available'}), 503
+            
+    except Exception as e:
+        logger.error(f"Error getting active sessions: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/chat-history', methods=['GET'])
+def get_chat_history_endpoint():
+    """Get chat history for a specific session"""
+    try:
+        session_id = request.args.get('session_id', 'default')
+        
+        if get_chat_history:
+            history = get_chat_history(session_id)
+            return jsonify({
+                'session_id': session_id,
+                'history': history,
+                'message_count': len(history)
+            })
+        else:
+            return jsonify({'error': 'Session management not available'}), 503
+            
+    except Exception as e:
+        logger.error(f"Error getting chat history: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 # =================== BOTS ===================

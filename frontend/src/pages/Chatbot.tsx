@@ -12,6 +12,71 @@ import {
   cleanBotResponse 
 } from '../utils/chatUtils';
 
+// Session storage keys
+const CHAT_SESSION_KEY = 'finedge-chat-session';
+const CHAT_SESSION_ID_KEY = 'finedge-session-id';
+
+// Generate or get session ID
+const generateSessionId = (): string => {
+  const stored = localStorage.getItem(CHAT_SESSION_ID_KEY);
+  if (stored) return stored;
+  
+  const newId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  localStorage.setItem(CHAT_SESSION_ID_KEY, newId);
+  return newId;
+};
+
+// Utility functions for session persistence
+const saveChatSession = (messages: Message[]) => {
+  try {
+    localStorage.setItem(CHAT_SESSION_KEY, JSON.stringify({
+      messages: messages.map(msg => ({
+        ...msg,
+        timestamp: msg.timestamp.toISOString() // Convert Date to string for storage
+      })),
+      lastUpdated: new Date().toISOString()
+    }));
+  } catch (error) {
+    console.warn('Failed to save chat session:', error);
+  }
+};
+
+const loadChatSession = (): Message[] | null => {
+  try {
+    const stored = localStorage.getItem(CHAT_SESSION_KEY);
+    if (!stored) return null;
+    
+    const session = JSON.parse(stored);
+    const messages = session.messages.map((msg: any) => ({
+      ...msg,
+      timestamp: new Date(msg.timestamp) // Convert string back to Date
+    }));
+    
+    // Check if session is from the last 24 hours (clean up old sessions)
+    const lastUpdated = new Date(session.lastUpdated);
+    const hoursSinceUpdate = (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60);
+    
+    if (hoursSinceUpdate > 24) {
+      // Session is too old, clear it
+      clearChatSession();
+      return null;
+    }
+    
+    return messages;
+  } catch (error) {
+    console.warn('Failed to load chat session:', error);
+    return null;
+  }
+};
+
+const clearChatSession = () => {
+  try {
+    localStorage.removeItem(CHAT_SESSION_KEY);
+  } catch (error) {
+    console.warn('Failed to clear chat session:', error);
+  }
+};
+
 /**
  * Main Chatbot component - AI Financial Assistant
  * Provides conversational interface for financial queries with voice support
@@ -19,17 +84,21 @@ import {
 const Chatbot = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // State management
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      type: 'bot',
-      content: 'Hello! I\'m your AI financial assistant. How can I help you today?',
-      timestamp: new Date()
-    }
-  ]);
+  // State management with session persistence
+  const [messages, setMessages] = useState<Message[]>(() => {
+    // Try to load saved session on component mount
+    const savedMessages = loadChatSession();
+    return savedMessages || [
+      {
+        type: 'bot',
+        content: 'Hello! I\'m your AI financial assistant. How can I help you today?',
+        timestamp: new Date()
+      }
+    ];
+  });
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [currentThinkingIndex, setCurrentThinkingIndex] = useState(0);
+  const [, setCurrentThinkingIndex] = useState(0);
   const [currentThinkingPhrases, setCurrentThinkingPhrases] = useState<string[]>([]);
   const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -42,6 +111,13 @@ const Chatbot = () => {
 
   useEffect(() => {
     scrollToBottom();
+  }, [messages]);
+
+  // Save chat session whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveChatSession(messages);
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -78,6 +154,32 @@ const Chatbot = () => {
       }
     };
   }, [isTyping, currentThinkingPhrases]);
+
+  const clearChat = async () => {
+    try {
+      // Clear backend session
+      const sessionId = generateSessionId();
+      const formData = new FormData();
+      formData.append('session_id', sessionId);
+      
+      await axios.post(`${SERVER_URL}/clear-chat-session`, formData);
+      
+      // Generate new session ID
+      localStorage.removeItem(CHAT_SESSION_ID_KEY);
+      
+    } catch (error) {
+      console.warn('Failed to clear backend session:', error);
+    }
+    
+    // Clear frontend session
+    const welcomeMessage: Message = {
+      type: 'bot',
+      content: 'Hello! I\'m FinEdgeAI, your AI financial assistant. How can I help you today?',
+      timestamp: new Date()
+    };
+    setMessages([welcomeMessage]);
+    clearChatSession();
+  };
 
   const speak = (text: string, messageIndex: number) => {
     // Cancel any ongoing speech
@@ -137,8 +239,10 @@ const Chatbot = () => {
     }]);
 
         try {
+          const sessionId = generateSessionId();
           const formData = new FormData();
           formData.append('input', input);
+          formData.append('session_id', sessionId);
 
           const config = {
             method: 'post',
@@ -284,7 +388,7 @@ const Chatbot = () => {
     <div className="h-[calc(100vh-2rem)] p-6">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl h-full flex flex-col">
         {/* Chat Header */}
-        <ChatHeader />
+        <ChatHeader onClearChat={clearChat} />
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
