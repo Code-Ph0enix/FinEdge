@@ -6,7 +6,7 @@ const ClerkSignUpPage = () => {
       <SignUp 
         routing="path" 
         path="/sign-up" 
-        redirectUrl="/portfolio"
+        forceRedirectUrl="/portfolio"
         appearance={{
           elements: {
             rootBox: "w-full max-w-md",
