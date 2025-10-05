@@ -99,7 +99,7 @@ const Home = () => {
               Meet Our Team
               </h2>
               <p className="mt-4 text-lg text-gray-500 dark:text-gray-400">
-              The brilliant minds behind FinEdge's AI-powered financial solutions.
+              The brilliant minds behind WealthWise's AI-powered financial solutions.
               </p>
             </div>
           <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
@@ -107,7 +107,7 @@ const Home = () => {
               {
                 name: 'Rohit Deshpande',
                 role: 'Full Stack Developer',
-                image: 'https://media.licdn.com/dms/image/v2/D4D03AQGiGB1-LT7JdQ/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1730998369348?e=1761782400&v=beta&t=CNwE3CJHKPtChMPHP5k2__qz8DuV1ptWYKtOzWUQaPY',  // Add your image to public/team folder
+                image: 'https://github.com/sJalui/LuxuryHaven/blob/main/Site%20Images/rohitbhai.jpg?raw=true',  // Add your image to public/team folder
                 description: 'I’m passionate about building robust, scalable software and applying data-driven approaches to solve real-world problems. I enjoy working across the stack and exploring modern tools and frameworks. Curiosity, consistency, and a drive for continuous improvement guide my work. I’m eager to contribute as a software engineer who not only writes clean, efficient code but also helps shape innovative, high-impact products.',
                 highlight: '16010122041',
                 github: 'https://github.com/irohitdeshpande',
@@ -116,7 +116,7 @@ const Home = () => {
               {
                 name: 'Eeshanya Joshi',
                 role: 'Fullstack Developer',
-                image: 'https://media.licdn.com/dms/image/v2/D4D03AQGN-qqViVM-7w/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1718384505381?e=1761782400&v=beta&t=ptHqpeTZLD6S-6UO0DAdqCRQVocRxJMRX0HvsAQ7YOk',  // Add your image to public/team folder
+                image: 'https://github.com/sJalui/LuxuryHaven/blob/main/Site%20Images/eeshanyabhai.jpg?raw=true',  // Add your image to public/team folder
                 description: 'A Final-year Computer Engineering student with a strong foundation and hands-on experience in academic and personal projects spanning software development and AI/ML. Adaptable, collaborative, and eager to apply technology to real-world challenges. Driven by clarity, consistency, and continuous learning.',
                 highlight: '16010122074',
                 github: 'https://github.com/Code-Ph0enix',
