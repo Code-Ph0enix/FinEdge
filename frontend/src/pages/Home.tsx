@@ -99,7 +99,7 @@ const Home = () => {
               Meet Our Team
               </h2>
               <p className="mt-4 text-lg text-gray-500 dark:text-gray-400">
-              The brilliant minds behind WealthWise's AI-powered financial solutions.
+              The brilliant minds behind FinEdge's AI-powered financial solutions.
               </p>
             </div>
           <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
