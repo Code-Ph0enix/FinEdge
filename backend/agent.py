@@ -1,9 +1,9 @@
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+# from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_react_agent
 from react_template import get_react_prompt_template
 from langchain_groq import ChatGroq
-from langchain_ollama import ChatOllama
+# from langchain_ollama import ChatOllama
 from langchain_google_genai import ChatGoogleGenerativeAI
 from tools.mytools import *
 # no warnings
