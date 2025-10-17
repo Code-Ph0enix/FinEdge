@@ -238,7 +238,94 @@ const Chatbot = () => {
       isThinking: true
     }]);
 
-        try {
+  //       try {
+  //         const sessionId = generateSessionId();
+  //         const formData = new FormData();
+  //         formData.append('input', input);
+  //         formData.append('session_id', sessionId);
+
+  //         const config = {
+  //           method: 'post',
+  //           maxBodyLength: Infinity,
+  //           url: `${SERVER_URL}/agent`,
+  //           data: formData
+  //         };
+
+  //         const response = await axios.request(config);
+  //         console.log(response.data);
+  //         setIsTyping(false);
+          
+  //         // Clean the response text using utility function
+  //         const cleanedOutput = cleanBotResponse(response.data.output || response.data || '');
+          
+  //         // Remove the thinking message and show only the final clean response
+  //         setMessages(prev => {
+  //           const lastMessage = prev[prev.length - 1];
+  //           if (lastMessage.isThinking) {
+  //             return [
+  //               ...prev.slice(0, -1),
+  //               {
+  //                 type: 'bot',
+  //                 content: '',
+  //                 timestamp: new Date(),
+  //                 isTyping: true
+  //               }
+  //             ];
+  //           }
+  //           return prev;
+  //         });
+
+  //         // Show the cleaned output with a typing effect
+  //         let displayedText = '';
+  //         let charIndex = 0;
+
+  //         const typingInterval = setInterval(() => {
+  //           if (charIndex < cleanedOutput.length) {
+  //             displayedText += cleanedOutput[charIndex];
+  //             charIndex++;
+              
+  //             // Update the last message with new text
+  //             setMessages(prev => {
+  //               const newMessages = [...prev];
+  //               newMessages[newMessages.length - 1] = {
+  //                 type: 'bot',
+  //                 content: displayedText,
+  //                 timestamp: new Date()
+  //               };
+  //               return newMessages;
+  //             });
+  //           } else {
+  //             clearInterval(typingInterval);
+  //           }
+  //         }, 30); // Adjust speed as needed - now typing character by character
+
+  //       } catch (error) {
+  //         console.error(error);
+  //         setIsTyping(false);
+  //         setMessages(prev => {
+  //           const lastMessage = prev[prev.length - 1];
+  //           if (lastMessage.isThinking) {
+  //             return [
+  //               ...prev.slice(0, -1),
+  //               {
+  //                 type: 'bot',
+  //                 content: "Sorry, I encountered an error. Please try again.",
+  //                 timestamp: new Date()
+  //               }
+  //             ];
+  //           }
+  //           return prev;
+  //         });
+  //       }
+  // };
+
+
+
+
+
+
+  //slightly changed version to show final response directly after thinking phrases
+          try {
           const sessionId = generateSessionId();
           const formData = new FormData();
           formData.append('input', input);
@@ -255,10 +342,10 @@ const Chatbot = () => {
           console.log(response.data);
           setIsTyping(false);
           
-          // Clean the response text using utility function
+          // Clean the response text using utility function (LEGACY)
           const cleanedOutput = cleanBotResponse(response.data.output || response.data || '');
           
-          // Remove the thinking message and show only the final clean response
+          // Remove the thinking message and show only the final clean response (LEGACY)
           setMessages(prev => {
             const lastMessage = prev[prev.length - 1];
             if (lastMessage.isThinking) {
@@ -275,7 +362,8 @@ const Chatbot = () => {
             return prev;
           });
 
-          // Show the cleaned output with a typing effect
+          // ENHANCED - Show the cleaned output with FASTER typing effect
+          // Changed from 30ms to 8ms per character for 4x speed improvement
           let displayedText = '';
           let charIndex = 0;
 
@@ -284,7 +372,7 @@ const Chatbot = () => {
               displayedText += cleanedOutput[charIndex];
               charIndex++;
               
-              // Update the last message with new text
+              // Update the last message with new text (LEGACY logic)
               setMessages(prev => {
                 const newMessages = [...prev];
                 newMessages[newMessages.length - 1] = {
@@ -297,11 +385,12 @@ const Chatbot = () => {
             } else {
               clearInterval(typingInterval);
             }
-          }, 30); // Adjust speed as needed - now typing character by character
+          }, 8); // ENHANCED - Changed from 30ms to 8ms (4x faster typing animation)
 
         } catch (error) {
           console.error(error);
           setIsTyping(false);
+          // Error handling (LEGACY - no changes)
           setMessages(prev => {
             const lastMessage = prev[prev.length - 1];
             if (lastMessage.isThinking) {

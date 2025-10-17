@@ -12,12 +12,17 @@ Version: 1.0.0
 """
 
 # Standard library imports
+import json
 import logging
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime
+
+# ✅ ADD THESE TWO LINES TO SILENCE YFINANCE
+yf_logger = logging.getLogger('yfinance')
+yf_logger.setLevel(logging.CRITICAL)
 
 # Third-party imports
 from flask import Flask, request, jsonify
@@ -32,27 +37,59 @@ except ImportError:
     logging.warning("Could not import onboard data")
     bank_data, mf_data = {}, {}
 
-try:
-    from jgaad_ai_agent_backup import jgaad_chat_with_gemini, clear_chat_session, get_active_sessions, get_chat_history
-    import gemini_fin_path
-except ImportError:
-    logging.warning("Could not import AI modules")
-    jgaad_chat_with_gemini = None
-    clear_chat_session = None
-    get_active_sessions = None
-    get_chat_history = None
-    gemini_fin_path = None
-
-# Initialize Flask application
-app = Flask(__name__)
-CORS(app)
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ADD THIS LINE - Create logger instance
+logger = logging.getLogger(__name__)
+
+# NEW - ENHANCED (Replace the above with):
+try:
+    # ENHANCED - Import from consolidated module
+    from financial_advisor import (
+        get_comprehensive_financial_advice,  # NEW - Main function
+        chat_with_advisor,  # LEGACY compatible
+        get_agent_research,  # NEW - For research-only
+        clear_chat_session,  # LEGACY compatible
+        get_active_sessions,  # LEGACY compatible
+        get_chat_history,  # LEGACY compatible
+        get_session_info,  # NEW - Session metadata
+        cleanup_old_sessions  # NEW - Automatic cleanup
+    )
+    import gemini_fin_path
+    logger.info("AI Financial Advisor module loaded successfully")
+except ImportError as e:
+    logging.warning(f"Could not import AI modules: {e}")
+    get_comprehensive_financial_advice = None
+    chat_with_advisor = None
+    get_agent_research = None
+    clear_chat_session = None
+    get_active_sessions = None
+    get_chat_history = None
+    get_session_info = None
+    cleanup_old_sessions = None
+    gemini_fin_path = None
+
+
+# try:
+#     from jgaad_ai_agent_backup import jgaad_chat_with_gemini, clear_chat_session, get_active_sessions, get_chat_history
+#     import gemini_fin_path
+# except ImportError:
+#     logging.warning("Could not import AI modules")
+#     jgaad_chat_with_gemini = None
+#     clear_chat_session = None
+#     get_active_sessions = None
+#     get_chat_history = None
+#     gemini_fin_path = None
+
+# Initialize Flask application
+app = Flask(__name__)
+CORS(app)
+
 
 @app.route('/', methods=['GET'])
 def home():
@@ -71,126 +108,274 @@ def home():
 # =================== DYNAMIC APIS ===================
 @app.route('/agent', methods=['POST'])
 def agent():
-    inp = request.form.get('input')
-    session_id = request.form.get('session_id', 'default')  # Get session ID from request
+    """
+    ENHANCED AI Financial Advisor endpoint
     
+    Changes from LEGACY:
+    - Uses consolidated ai_financial_advisor.py module
+    - Direct Python function call instead of subprocess
+    - Better error handling and response formatting
+    - Session management integrated
+    - Research and advisory combined
+    """
+    inp = request.form.get('input')
+    session_id = request.form.get('session_id', 'default')
+    
+    # LEGACY - Input validation
     if not inp:
         return jsonify({'error': 'No input provided'}), 400
     
-    # Basic input validation
-    if len(inp) > 1000:  # Prevent extremely long inputs
+    if len(inp) > 1000:
         return jsonify({'error': 'Input too long'}), 400
     
+    # NEW - ADDED: Check for research preference
+    use_research = request.form.get('use_research', 'true').lower() == 'true'
+    
     try:
-        print(f"Processing input: {inp}")
+        logger.info(f"[{session_id}] Processing input: {inp[:100]}...")
         
-        # Add timeout to prevent hanging - use full path to ensure correct environment
-        import os
-        import sys
-        python_executable = sys.executable  # Use the same Python that's running Flask
-        agent_path = os.path.join(os.path.dirname(__file__), 'agent.py')
+        # ENHANCED - Use consolidated module instead of subprocess
+        if get_comprehensive_financial_advice:
+            # NEW - Use the comprehensive function
+            result = get_comprehensive_financial_advice(
+                user_query=inp,
+                session_id=session_id,
+                use_research=use_research
+            )
+            
+            # ENHANCED - Structured response
+            response = {
+                'output': result['advice'],
+                'thought': result.get('research_output', ''),
+                'session_id': result['session_id'],
+                'research_used': result['research_used'],
+                'processing_time': result['processing_time_seconds'],
+                'timestamp': result['timestamp']
+            }
+            
+            # NEW - ADDED: Periodic session cleanup
+            if cleanup_old_sessions:
+                cleanup_old_sessions(max_sessions=100)
+            
+            logger.info(f"[{session_id}] Request completed successfully")
+            return jsonify(response)
         
-        process = subprocess.Popen(
-            [python_executable, agent_path, inp], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            cwd=os.path.dirname(__file__)  # Set working directory to backend folder
-        )
-        
-        output = []
-        # Stream output in real-time
-        if process.stdout is not None:
-            while True:
-                line = process.stdout.readline()
-                if not line and process.poll() is not None:
-                    break
-                if line:
-                    print(line.strip())  # Print to terminal in real-time
-                    output.append(line)
         else:
-            logger.error("process.stdout is None")
-        
-        output_str = ''.join(output)
-        return_code = process.wait()
-        
-        # Check if process failed
-        if return_code != 0:
-            if process.stderr is not None:
-                stderr = process.stderr.read()
+            # LEGACY FALLBACK - If new module not available
+            logger.warning("New AI module not available, using legacy subprocess method")
+            
+            # Your existing subprocess code here (LEGACY)
+            import subprocess
+            python_executable = sys.executable
+            agent_path = os.path.join(os.path.dirname(__file__), 'agent.py')
+            
+            process = subprocess.Popen(
+                [python_executable, agent_path, inp], 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                cwd=os.path.dirname(__file__)
+            )
+            
+            output = []
+            if process.stdout is not None:
+                while True:
+                    line = process.stdout.readline()
+                    if not line and process.poll() is not None:
+                        break
+                    if line:
+                        output.append(line)
+            
+            output_str = ''.join(output)
+            return_code = process.wait()
+            
+            if return_code != 0:
+                stderr = process.stderr.read() if process.stderr else ""
+                logger.error(f"Agent script failed: {stderr}")
+                return jsonify({
+                    'error': 'Agent processing failed', 
+                    'details': stderr[:500],
+                    'return_code': return_code
+                }), 500
+            
+            # Extract response
+            final_answer = re.search(r'<Response>(.*?)</Response>', output_str, re.DOTALL)
+            if final_answer:
+                final_answer = final_answer.group(1).strip()
             else:
-                stderr = ""
-                logger.error("process.stderr is None")
-            logger.error(f"Agent script failed with return code {return_code}")
-            logger.error(f"STDERR: {stderr}")
-            logger.error(f"STDOUT: {output_str}")
-            return jsonify({
-                'error': 'Agent processing failed', 
-                'details': stderr[:500],  # Include error details for debugging
-                'return_code': return_code
-            }), 500
-        
-        # Debug: Log the full output to see what we received
-        logger.info(f"Agent output: {output_str[:500]}...")  # Log first 500 chars
-        
-        # Use regex to extract the response between <Response> tags
-        final_answer = re.search(r'<Response>(.*?)</Response>', output_str, re.DOTALL)
-        if final_answer:
-            final_answer = final_answer.group(1).strip()
-        else:
-            logger.warning(f"No <Response> tags found in output. Full output: {output_str}")
-            # Try to extract the agent's final answer differently
-            if "Final Answer:" in output_str:
-                # Extract everything after "Final Answer:"
-                final_answer = output_str.split("Final Answer:")[-1].strip()
-            else:
-                # Fallback to backup AI if available
-                if jgaad_chat_with_gemini:
-                    try:
-                        final_answer = jgaad_chat_with_gemini(inp, output_str, session_id)
-                    except Exception as e:
-                        logger.error(f"Backup AI failed: {e}")
-                        final_answer = "Error processing request"
+                if "Final Answer:" in output_str:
+                    final_answer = output_str.split("Final Answer:")[-1].strip()
                 else:
-                    final_answer = f"Agent ran but no proper response found. Output: {output_str[-200:]}"
+                    if chat_with_advisor:
+                        final_answer = chat_with_advisor(inp, output_str, session_id)
+                    else:
+                        final_answer = "Error: No advisor available"
+            
+            return jsonify({'output': final_answer, 'thought': output_str})
         
-        return jsonify({'output': final_answer, 'thought': output_str})
-        
-    except subprocess.TimeoutExpired:
-        process.kill()
-        return jsonify({'error': 'Request timed out'}), 500
     except Exception as e:
-        logger.error(f"Error in agent endpoint: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        logger.error(f"[{session_id}] Error in agent endpoint: {e}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+
+# @app.route('/agent', methods=['POST'])
+# def agent():
+#     inp = request.form.get('input')
+#     session_id = request.form.get('session_id', 'default')  # Get session ID from request
+    
+#     if not inp:
+#         return jsonify({'error': 'No input provided'}), 400
+    
+#     # Basic input validation
+#     if len(inp) > 1000:  # Prevent extremely long inputs
+#         return jsonify({'error': 'Input too long'}), 400
+    
+#     try:
+#         print(f"Processing input: {inp}")
+        
+#         # Add timeout to prevent hanging - use full path to ensure correct environment
+#         import os
+#         import sys
+#         python_executable = sys.executable  # Use the same Python that's running Flask
+#         agent_path = os.path.join(os.path.dirname(__file__), 'agent.py')
+        
+#         process = subprocess.Popen(
+#             [python_executable, agent_path, inp], 
+#             stdout=subprocess.PIPE, 
+#             stderr=subprocess.PIPE,
+#             universal_newlines=True,
+#             cwd=os.path.dirname(__file__)  # Set working directory to backend folder
+#         )
+        
+#         output = []
+#         # Stream output in real-time
+#         if process.stdout is not None:
+#             while True:
+#                 line = process.stdout.readline()
+#                 if not line and process.poll() is not None:
+#                     break
+#                 if line:
+#                     print(line.strip())  # Print to terminal in real-time
+#                     output.append(line)
+#         else:
+#             logger.error("process.stdout is None")
+        
+#         output_str = ''.join(output)
+#         return_code = process.wait()
+        
+#         # Check if process failed
+#         if return_code != 0:
+#             if process.stderr is not None:
+#                 stderr = process.stderr.read()
+#             else:
+#                 stderr = ""
+#                 logger.error("process.stderr is None")
+#             logger.error(f"Agent script failed with return code {return_code}")
+#             logger.error(f"STDERR: {stderr}")
+#             logger.error(f"STDOUT: {output_str}")
+#             return jsonify({
+#                 'error': 'Agent processing failed', 
+#                 'details': stderr[:500],  # Include error details for debugging
+#                 'return_code': return_code
+#             }), 500
+        
+#         # Debug: Log the full output to see what we received
+#         logger.info(f"Agent output: {output_str[:500]}...")  # Log first 500 chars
+        
+#         # Use regex to extract the response between <Response> tags
+#         final_answer = re.search(r'<Response>(.*?)</Response>', output_str, re.DOTALL)
+#         if final_answer:
+#             final_answer = final_answer.group(1).strip()
+#         else:
+#             logger.warning(f"No <Response> tags found in output. Full output: {output_str}")
+#             # Try to extract the agent's final answer differently
+#             if "Final Answer:" in output_str:
+#                 # Extract everything after "Final Answer:"
+#                 final_answer = output_str.split("Final Answer:")[-1].strip()
+#             else:
+#                 # Fallback to backup AI if available
+#                 if jgaad_chat_with_gemini:
+#                     try:
+#                         final_answer = jgaad_chat_with_gemini(inp, output_str, session_id)
+#                     except Exception as e:
+#                         logger.error(f"Backup AI failed: {e}")
+#                         final_answer = "Error processing request"
+#                 else:
+#                     final_answer = f"Agent ran but no proper response found. Output: {output_str[-200:]}"
+        
+#         return jsonify({'output': final_answer, 'thought': output_str})
+        
+#     except subprocess.TimeoutExpired:
+#         process.kill()
+#         return jsonify({'error': 'Request timed out'}), 500
+#     except Exception as e:
+#         logger.error(f"Error in agent endpoint: {e}")
+#         return jsonify({'error': 'Internal server error'}), 500
+
+# @app.route('/ai-financial-path', methods=['POST'])
+# def ai_financial_path():
+#     # Fix the original bug - check if 'input' exists in form data
+#     if 'input' not in request.form:
+#         return jsonify({'error': 'No input provided'}), 400
+        
+#     input_text = request.form.get('input', '').strip()
+#     if not input_text:
+#         return jsonify({'error': 'Input cannot be empty'}), 400
+        
+#     risk = request.form.get('risk', 'conservative')
+    
+#     # Validate risk level
+#     allowed_risks = ['conservative', 'moderate', 'aggressive']
+#     if risk not in allowed_risks:
+#         return jsonify({'error': f'Invalid risk level. Allowed: {allowed_risks}'}), 400
+    
+#     print(f"Processing financial path for: {input_text}, risk: {risk}")
+    
+#     if not gemini_fin_path:
+#         return jsonify({'error': 'Financial AI service not available'}), 503
+    
+#     try:
+#         response = gemini_fin_path.get_gemini_response(input_text, risk)
+#         return jsonify(response)
+#     except Exception as e:
+#         logger.error(f"Financial path error: {e}")
+#         return jsonify({'error': 'Something went wrong'}), 500
+
 
 @app.route('/ai-financial-path', methods=['POST'])
 def ai_financial_path():
-    # Fix the original bug - check if 'input' exists in form data
+    # ... (your initial validation code is good) ...
     if 'input' not in request.form:
         return jsonify({'error': 'No input provided'}), 400
-        
+    
     input_text = request.form.get('input', '').strip()
     if not input_text:
         return jsonify({'error': 'Input cannot be empty'}), 400
         
     risk = request.form.get('risk', 'conservative')
-    
-    # Validate risk level
-    allowed_risks = ['conservative', 'moderate', 'aggressive']
-    if risk not in allowed_risks:
-        return jsonify({'error': f'Invalid risk level. Allowed: {allowed_risks}'}), 400
-    
+
     print(f"Processing financial path for: {input_text}, risk: {risk}")
     
     if not gemini_fin_path:
         return jsonify({'error': 'Financial AI service not available'}), 503
     
     try:
-        response = gemini_fin_path.get_gemini_response(input_text, risk)
-        return jsonify(response)
+        # 1. Get the JSON STRING from the Gemini service
+        response_string = gemini_fin_path.get_gemini_response(input_text, risk)
+        
+        # 2. ✅ CRITICAL STEP: Parse the JSON string into a Python dictionary
+        response_dict = json.loads(response_string)
+        
+        # 3. Now, jsonify the DICTIONARY to create a proper JSON response
+        return jsonify(response_dict)
+
+    except json.JSONDecodeError:
+        # This catches errors if Gemini returns something that isn't valid JSON
+        logger.error(f"Failed to decode JSON from Gemini. Raw response: {response_string}")
+        return jsonify({'error': 'The AI response was not in a valid format.'}), 500
     except Exception as e:
         logger.error(f"Financial path error: {e}")
-        return jsonify({'error': 'Something went wrong'}), 500
+        return jsonify({'error': 'Something went wrong on the server.'}), 500
 
 # =================== STATIC APIS ===================
 @app.route('/auto-bank-data', methods=['GET'])  # Fixed: was 'get', now 'GET'
@@ -493,10 +678,61 @@ def get_market_summary():
         return jsonify({'error': 'Internal server error'}), 500
 
 # =================== SESSION MANAGEMENT ===================
+# ==================== NEW ENDPOINT - Session Info ====================
+# NEW - ADDED: Get detailed session information
 
+@app.route('/session-info', methods=['GET'])
+def get_session_info_endpoint():
+    """
+    NEW - Get detailed information about a specific session
+    """
+    try:
+        session_id = request.args.get('session_id', 'default')
+        
+        if get_session_info:
+            info = get_session_info(session_id)
+            if info:
+                return jsonify({
+                    'success': True,
+                    'session_info': info
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': f'Session {session_id} not found'
+                })
+        else:
+            return jsonify({'error': 'Session management not available'}), 503
+            
+    except Exception as e:
+        logger.error(f"Error getting session info: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# @app.route('/clear-chat-session', methods=['POST'])
+# def clear_chat_session_endpoint():
+#     """Clear a specific chat session"""
+#     try:
+#         session_id = request.form.get('session_id', 'default')
+        
+#         if clear_chat_session:
+#             success = clear_chat_session(session_id)
+#             return jsonify({
+#                 'success': success,
+#                 'message': f'Session {session_id} cleared successfully' if success else f'Session {session_id} not found'
+#             })
+#         else:
+#             return jsonify({'error': 'Session management not available'}), 503
+            
+#     except Exception as e:
+#         logger.error(f"Error clearing chat session: {e}")
+#         return jsonify({'error': 'Internal server error'}), 500
 @app.route('/clear-chat-session', methods=['POST'])
 def clear_chat_session_endpoint():
-    """Clear a specific chat session"""
+    """
+    LEGACY ENDPOINT - No functional changes, updated to use consolidated module
+    Clear a specific chat session
+    """
     try:
         session_id = request.form.get('session_id', 'default')
         
@@ -513,15 +749,47 @@ def clear_chat_session_endpoint():
         logger.error(f"Error clearing chat session: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+# @app.route('/active-sessions', methods=['GET'])
+# def get_active_sessions_endpoint():
+#     """Get list of all active chat sessions"""
+#     try:
+#         if get_active_sessions:
+#             sessions = get_active_sessions()
+#             return jsonify({
+#                 'active_sessions': sessions,
+#                 'count': len(sessions)
+#             })
+#         else:
+#             return jsonify({'error': 'Session management not available'}), 503
+            
+#     except Exception as e:
+#         logger.error(f"Error getting active sessions: {e}")
+#         return jsonify({'error': 'Internal server error'}), 500
+
+
+
 @app.route('/active-sessions', methods=['GET'])
 def get_active_sessions_endpoint():
-    """Get list of all active chat sessions"""
+    """
+    LEGACY ENDPOINT - ENHANCED with more details
+    Get list of all active chat sessions
+    """
     try:
         if get_active_sessions:
             sessions = get_active_sessions()
+            
+            # NEW - ADDED: Include session details
+            session_details = []
+            if get_session_info:
+                for sid in sessions:
+                    info = get_session_info(sid)
+                    if info:
+                        session_details.append(info)
+            
             return jsonify({
                 'active_sessions': sessions,
-                'count': len(sessions)
+                'count': len(sessions),
+                'session_details': session_details if session_details else None  # NEW
             })
         else:
             return jsonify({'error': 'Session management not available'}), 503
@@ -529,10 +797,15 @@ def get_active_sessions_endpoint():
     except Exception as e:
         logger.error(f"Error getting active sessions: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+    
+
 
 @app.route('/chat-history', methods=['GET'])
 def get_chat_history_endpoint():
-    """Get chat history for a specific session"""
+    """
+    LEGACY ENDPOINT - No functional changes
+    Get chat history for a specific session
+    """
     try:
         session_id = request.args.get('session_id', 'default')
         
@@ -549,6 +822,26 @@ def get_chat_history_endpoint():
     except Exception as e:
         logger.error(f"Error getting chat history: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+# @app.route('/chat-history', methods=['GET'])
+# def get_chat_history_endpoint():
+#     """Get chat history for a specific session"""
+#     try:
+#         session_id = request.args.get('session_id', 'default')
+        
+#         if get_chat_history:
+#             history = get_chat_history(session_id)
+#             return jsonify({
+#                 'session_id': session_id,
+#                 'history': history,
+#                 'message_count': len(history)
+#             })
+#         else:
+#             return jsonify({'error': 'Session management not available'}), 503
+            
+#     except Exception as e:
+#         logger.error(f"Error getting chat history: {e}")
+#         return jsonify({'error': 'Internal server error'}), 500
 
 # =================== BOTS ===================
 # Add your bot endpoints here
