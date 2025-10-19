@@ -1,5 +1,16 @@
+/**
+ * FinEdge Income Tab - MongoDB Connected
+ * 
+ * Manages income entries with real-time MongoDB synchronization.
+ * Users can add, edit, and delete income sources.
+ * 
+ * @version 2.0.0 - MongoDB Integration
+ */
+
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Plus, Trash2, Edit2, X, Briefcase, Gift, Landmark, TrendingUp } from 'lucide-react';
+import { useUser } from '@clerk/clerk-react';
+import { IndianRupeeIcon, Plus, Trash2, Edit2, X, Briefcase, Gift, Landmark, TrendingUp } from 'lucide-react';
+import { SERVER_URL } from '../../../utils/utils';
 
 interface Income {
   id: string;
@@ -18,7 +29,9 @@ const categoryIcons = {
 };
 
 export const IncomeTab = () => {
+  const { user } = useUser();
   const [incomes, setIncomes] = useState<Income[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedIncome, setSelectedIncome] = useState<string | null>(null);
@@ -30,58 +43,42 @@ export const IncomeTab = () => {
     date: new Date().toISOString().split('T')[0]
   });
 
-  // Load incomes from localStorage on component mount
+  // Fetch incomes from MongoDB on component mount
   useEffect(() => {
-    const savedIncomes = localStorage.getItem('userIncomes');
-    if (savedIncomes) {
+    const fetchIncomes = async () => {
+      if (!user?.id) return;
+
       try {
-        const parsedIncomes = JSON.parse(savedIncomes);
-        setIncomes(parsedIncomes);
+        setIsLoading(true);
+        const response = await fetch(
+          `${SERVER_URL}/api/user-profile/income?clerkUserId=${user.id}`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setIncomes(data.income || []);
+        } else {
+          console.error('Failed to fetch income data');
+        }
       } catch (error) {
-        console.error('Error loading incomes from localStorage:', error);
-        setIncomes([]);
+        console.error('Error fetching income:', error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-  }, []);
+    };
 
-  // Save incomes to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('userIncomes', JSON.stringify(incomes));
-  }, [incomes]);
+    fetchIncomes();
+  }, [user]);
 
-  const handleAdd = () => {
-    setIsEditing(false);
-    setFormData({
-      source: '',
-      amount: '',
-      frequency: 'monthly',
-      category: 'salary',
-      date: new Date().toISOString().split('T')[0]
-    });
-    setIsModalOpen(true);
-  };
+  const handleAdd = async () => {
+    if (!user?.id) return;
 
-  const handleEdit = (income: Income) => {
-    setIsEditing(true);
-    setSelectedIncome(income.id);
-    setFormData({
-      source: income.source,
-      amount: income.amount.toString(),
-      frequency: income.frequency,
-      category: income.category,
-      date: income.date
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = (id: string) => {
-    setIncomes(incomes.filter(income => income.id !== id));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
     const newIncome: Income = {
-      id: isEditing ? selectedIncome! : Math.random().toString(36).substr(2, 9),
+      id: `income_${Date.now()}`,
       source: formData.source,
       amount: parseFloat(formData.amount),
       frequency: formData.frequency as 'monthly' | 'yearly' | 'one-time',
@@ -89,247 +86,313 @@ export const IncomeTab = () => {
       date: formData.date
     };
 
-    if (isEditing) {
-      setIncomes(incomes.map(income => income.id === selectedIncome ? newIncome : income));
-    } else {
-      setIncomes([...incomes, newIncome]);
+    try {
+      const response = await fetch(`${SERVER_URL}/api/user-profile/income`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clerkUserId: user.id,
+          ...newIncome
+        }),
+      });
+
+      if (response.ok) {
+        setIncomes([...incomes, newIncome]);
+        setIsModalOpen(false);
+        resetForm();
+      } else {
+        console.error('Failed to add income');
+      }
+    } catch (error) {
+      console.error('Error adding income:', error);
     }
-
-    setIsModalOpen(false);
   };
 
-  const getTotalMonthlyIncome = () => {
-    return incomes.reduce((total, income) => {
-      const amount = income.amount;
-      switch (income.frequency) {
-        case 'monthly':
-          return total + amount;
-        case 'yearly':
-          return total + amount / 12;
-        case 'one-time':
-          return total;
-        default:
-          return total;
+  const handleEdit = async () => {
+    if (!selectedIncome || !user?.id) return;
+
+    const updatedIncome: Income = {
+      id: selectedIncome,
+      source: formData.source,
+      amount: parseFloat(formData.amount),
+      frequency: formData.frequency as 'monthly' | 'yearly' | 'one-time',
+      category: formData.category as 'salary' | 'investment' | 'gift' | 'other',
+      date: formData.date
+    };
+
+    try {
+      const response = await fetch(
+        `${SERVER_URL}/api/user-profile/income/${selectedIncome}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clerkUserId: user.id,
+            ...updatedIncome
+          }),
+        }
+      );
+
+      if (response.ok) {
+        setIncomes(incomes.map(inc => 
+          inc.id === selectedIncome ? updatedIncome : inc
+        ));
+        setIsModalOpen(false);
+        setIsEditing(false);
+        resetForm();
+      } else {
+        console.error('Failed to update income');
       }
-    }, 0);
+    } catch (error) {
+      console.error('Error updating income:', error);
+    }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
+  const handleDelete = async (id: string) => {
+    if (!user?.id || !confirm('Are you sure you want to delete this income source?')) return;
 
-  const fillDemoData = () => {
-    const demoIncomes = [
-      {
-        source: "Software Engineer Salary",
-        amount: "150000",
-        frequency: "monthly",
-        category: "salary",
-        date: new Date().toISOString().split('T')[0]
-      },
-      {
-        source: "Stock Market Returns",
-        amount: "50000",
-        frequency: "monthly",
-        category: "investment",
-        date: new Date().toISOString().split('T')[0]
-      },
-      {
-        source: "Freelance Project",
-        amount: "200000",
-        frequency: "one-time",
-        category: "other",
-        date: new Date().toISOString().split('T')[0]
-      },
-      {
-        source: "Dividend Income",
-        amount: "75000",
-        frequency: "yearly",
-        category: "investment",
-        date: new Date().toISOString().split('T')[0]
+    try {
+      const response = await fetch(
+        `${SERVER_URL}/api/user-profile/income/${id}?clerkUserId=${user.id}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        setIncomes(incomes.filter(inc => inc.id !== id));
+      } else {
+        console.error('Failed to delete income');
       }
-    ];
+    } catch (error) {
+      console.error('Error deleting income:', error);
+    }
+  };
 
-    const randomIncome = demoIncomes[Math.floor(Math.random() * demoIncomes.length)];
+  const openAddModal = () => {
+    resetForm();
+    setIsEditing(false);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (income: Income) => {
     setFormData({
-      ...formData,
-      ...randomIncome
+      source: income.source,
+      amount: income.amount.toString(),
+      frequency: income.frequency,
+      category: income.category,
+      date: income.date
     });
+    setSelectedIncome(income.id);
+    setIsEditing(true);
+    setIsModalOpen(true);
   };
+
+  const resetForm = () => {
+    setFormData({
+      source: '',
+      amount: '',
+      frequency: 'monthly',
+      category: 'salary',
+      date: new Date().toISOString().split('T')[0]
+    });
+    setSelectedIncome(null);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isEditing) {
+      handleEdit();
+    } else {
+      handleAdd();
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-8">
-      {/* Header with Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white">
-          <h3 className="text-lg font-medium opacity-90">Total Monthly Income</h3>
-          <div className="mt-4 flex items-baseline">
-            <span className="text-3xl font-bold">{formatCurrency(getTotalMonthlyIncome())}</span>
-            <span className="ml-2 text-sm opacity-75">/month</span>
-          </div>
+    <div className="space-y-6">
+      {/* Add Income Button */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Income Sources</h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Track all your income sources and earnings
+          </p>
         </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Sources</h4>
-            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{incomes.length}</p>
-          </div>
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Yearly Total</h4>
-            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-              {formatCurrency(getTotalMonthlyIncome() * 12)}
-            </p>
-          </div>
-        </div>
+        <button
+          onClick={openAddModal}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
+        >
+          <Plus className="w-5 h-5" />
+          Add Income
+        </button>
       </div>
 
       {/* Income List */}
-      <div>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Income Sources</h2>
-          <button
-            onClick={handleAdd}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Income
-          </button>
+      {incomes.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <IndianRupeeIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600 dark:text-gray-400 text-lg">No income sources added yet</p>
+          <p className="text-gray-500 dark:text-gray-500 text-sm mt-2">
+            Click "Add Income" to get started
+          </p>
         </div>
-
-        <div className="space-y-4">
+      ) : (
+        <div className="grid gap-4">
           {incomes.map((income) => {
             const Icon = categoryIcons[income.category];
             return (
               <div
                 key={income.id}
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:shadow-md transition-shadow"
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className={`p-2 rounded-lg ${
-                      income.category === 'salary' ? 'bg-green-100 text-green-600' :
-                      income.category === 'investment' ? 'bg-blue-100 text-blue-600' :
-                      income.category === 'gift' ? 'bg-purple-100 text-purple-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      <Icon className="h-6 w-6" />
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-4 flex-1">
+                    <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                      <Icon className="w-6 h-6 text-green-600 dark:text-green-400" />
                     </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900 dark:text-white">{income.source}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {income.frequency.charAt(0).toUpperCase() + income.frequency.slice(1)}
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {income.source}
+                      </h3>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        <span className="capitalize">{income.category}</span>
+                        <span>•</span>
+                        <span className="capitalize">{income.frequency}</span>
+                        <span>•</span>
+                        <span>{new Date(income.date).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-3">
+                        ₹{income.amount.toLocaleString('en-IN')}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {formatCurrency(income.amount)}
-                    </span>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(income)}
-                        className="p-1 text-gray-400 hover:text-gray-500"
-                      >
-                        <Edit2 className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(income.id)}
-                        className="p-1 text-gray-400 hover:text-red-500"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openEditModal(income)}
+                      className="p-2 text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors"
+                    >
+                      <Edit2 className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(income.id)}
+                      className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
+      )}
+
+      {/* Total Income Summary */}
+      {incomes.length > 0 && (
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm">Total Monthly Income (estimated)</p>
+              <p className="text-3xl font-bold mt-1">
+                ₹{incomes.reduce((sum, inc) => {
+                  if (inc.frequency === 'monthly') return sum + inc.amount;
+                  if (inc.frequency === 'yearly') return sum + (inc.amount / 12);
+                  return sum;
+                }, 0).toLocaleString('en-IN')}
+              </p>
+            </div>
+            <IndianRupeeIcon className="w-12 h-12 text-white/30" />
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-500/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {isEditing ? 'Edit Income Source' : 'Add Income Source'}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                {isEditing ? 'Edit Income' : 'Add Income'}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-500"
+                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               >
-                <X className="h-6 w-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Source Name
+                  Income Source *
                 </label>
                 <input
                   type="text"
                   value={formData.source}
                   onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="e.g., Salary from TCS"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Amount
+                  Amount (₹) *
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-400">₹</span>
-                  </div>
-                  <input
-                    type="number"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    className="w-full pl-10 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
-                    required
-                  />
-                </div>
+                <input
+                  type="number"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="50000"
+                  min="0"
+                  step="0.01"
+                  required
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Frequency
-                  </label>
-                  <select
-                    value={formData.frequency}
-                    onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                    <option value="one-time">One-time</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Frequency *
+                </label>
+                <select
+                  value={formData.frequency}
+                  onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  required
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="one-time">One-time</option>
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
-                  >
-                    <option value="salary">Salary</option>
-                    <option value="investment">Investment</option>
-                    <option value="gift">Gift</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Category *
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  required
+                >
+                  <option value="salary">Salary</option>
+                  <option value="investment">Investment</option>
+                  <option value="gift">Gift</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
 
               <div>
@@ -340,31 +403,23 @@ export const IncomeTab = () => {
                   type="date"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
-                  required
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={fillDemoData}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Demo Data
-                </button>
+              <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
                 >
-                  {isEditing ? 'Save Changes' : 'Add Income'}
+                  {isEditing ? 'Update' : 'Add'}
                 </button>
               </div>
             </form>
@@ -373,4 +428,6 @@ export const IncomeTab = () => {
       )}
     </div>
   );
-}; 
+};
+
+// End of frontend/src/pages/MyData/tabs/IncomeTab.tsx

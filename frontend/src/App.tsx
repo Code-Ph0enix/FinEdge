@@ -18,6 +18,7 @@ import MoneyPulse from './components/MoneyPulse';
 import MoneyCalc from './components/MoneyCalc';
 import StockAnalyzer from './pages/StockAnalyzer';
 import SSOCallback from './components/SSOCallback';
+import Onboarding from './pages/Onboarding'; // NEW - ADDED
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -33,6 +34,14 @@ function App() {
                 <Route path="/sign-in" element={<AuthComponent />} />
                 <Route path="/sign-up" element={<AuthComponent />} />
                 <Route path="/sign-up/sso-callback" element={<SSOCallback />} />
+                
+                {/* NEW - ADDED: Onboarding Route (no navbar, no dashboard layout) */}
+                <Route path="/onboarding" element={
+                  <ProtectedRoute>
+                    <Onboarding />
+                  </ProtectedRoute>
+                } />
+
                 <Route path="/portfolio" element={
                   <ProtectedRoute>
                     <DashboardLayout>

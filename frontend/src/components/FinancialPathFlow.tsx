@@ -13,9 +13,9 @@ import {
   Node
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Mic, MicOff, Send, TrendingUp, Shield, DollarSign, Clock } from 'lucide-react';
+import { Mic, MicOff, Send, TrendingUp, Shield, IndianRupeeIcon, Clock } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { SERVER_URL } from '../utils';
+import { SERVER_URL } from '../utils/utils';
 
 // Define custom types for Speech Recognition
 declare global {
@@ -401,7 +401,7 @@ const FinancialPathFlow = () => {
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex items-start space-x-3">
-                <DollarSign className="h-6 w-6 text-indigo-600 dark:text-indigo-400 mt-1" />
+                <IndianRupeeIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400 mt-1" />
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Investment Amount</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">{serverData.userProfile.investmentAmount}</p>

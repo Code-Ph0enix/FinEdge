@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { BarChart2, BookOpen, TrendingUp, User, LineChart, LayoutDashboard, Database, MessageSquare, Newspaper, Calculator, HelpCircle } from 'lucide-react';
 import { useUser } from '@clerk/clerk-react';
 import { useTour } from '../context/TourContext';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 const Sidebar = () => {
   const location = useLocation();
@@ -81,18 +82,26 @@ const Sidebar = () => {
             </div>
           </Link>
 
-          {/* Tutorial Button */}
-          <button
-            onClick={openTour}
-            className="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
-          >
-            <HelpCircle className="h-4 w-4 mr-2" />
-            Take a Tour
-          </button>
+          {/* Theme Toggle + Tour Button Row */}
+          <div className="mt-4 flex items-center gap-2">
+            {/* Theme Toggle - NEW! */}
+            <div className="tour-theme-toggle">
+              <ThemeToggle />
+            </div>
+
+            {/* Tutorial Button */}
+            <button
+              onClick={openTour}
+              className="flex-1 flex items-center justify-center px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+            >
+              <HelpCircle className="h-4 w-4 mr-2" />
+              Take a Tour
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default Sidebar; 
+export default Sidebar;

@@ -15,3 +15,5 @@ ddgs
 pandas
 numpy
 datetime
+pymongo
+dnspython

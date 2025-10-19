@@ -1,5 +1,16 @@
+/**
+ * FinEdge Assets Tab - MongoDB Connected
+ * 
+ * Manages asset entries with real-time MongoDB synchronization.
+ * Users can track properties, investments, and other valuable assets.
+ * 
+ * @version 2.0.0 - MongoDB Integration
+ */
+
 import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { DollarSign, Plus, Trash2, Edit2, X, Building2, Briefcase, Car, Landmark, Coins, CreditCard } from 'lucide-react';
+import { SERVER_URL } from '../../../utils/utils';
 
 interface Asset {
   id: string;
@@ -29,56 +40,166 @@ const categoryColors = {
   other: 'gray'
 };
 
+const categoryLabels = {
+  realestate: 'Real Estate',
+  investments: 'Investments',
+  vehicles: 'Vehicles',
+  bank: 'Bank Account',
+  cash: 'Cash',
+  other: 'Other'
+};
+
 export const AssetsTab = () => {
+  const { user } = useUser();
   const [assets, setAssets] = useState<Asset[]>([]);
-
-  // Load assets from localStorage on component mount
-  useEffect(() => {
-    const savedAssets = localStorage.getItem('userAssets');
-    if (savedAssets) {
-      try {
-        const parsedAssets = JSON.parse(savedAssets);
-        setAssets(parsedAssets);
-      } catch (error) {
-        console.error('Error loading assets from localStorage:', error);
-        setAssets([]);
-      }
-    }
-  }, []);
-
-  // Save assets to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('userAssets', JSON.stringify(assets));
-  }, [assets]);
-
+  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     value: '',
-    category: 'realestate',
+    category: 'bank',
     purchaseDate: '',
     appreciationRate: '',
     notes: ''
   });
 
-  const handleAdd = () => {
+  // Fetch assets from MongoDB on component mount
+  useEffect(() => {
+    const fetchAssets = async () => {
+      if (!user?.id) return;
+
+      try {
+        setIsLoading(true);
+        const response = await fetch(
+          `${SERVER_URL}/api/user-profile/assets?clerkUserId=${user.id}`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setAssets(data.assets || []);
+        } else {
+          console.error('Failed to fetch assets data');
+        }
+      } catch (error) {
+        console.error('Error fetching assets:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAssets();
+  }, [user]);
+
+  const handleAdd = async () => {
+    if (!user?.id) return;
+
+    const newAsset: Asset = {
+      id: `asset_${Date.now()}`,
+      name: formData.name,
+      value: parseFloat(formData.value),
+      category: formData.category as any,
+      purchaseDate: formData.purchaseDate || undefined,
+      appreciationRate: formData.appreciationRate ? parseFloat(formData.appreciationRate) : undefined,
+      notes: formData.notes || undefined
+    };
+
+    try {
+      const response = await fetch(`${SERVER_URL}/api/user-profile/assets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clerkUserId: user.id,
+          ...newAsset
+        }),
+      });
+
+      if (response.ok) {
+        setAssets([...assets, newAsset]);
+        setIsModalOpen(false);
+        resetForm();
+      } else {
+        console.error('Failed to add asset');
+      }
+    } catch (error) {
+      console.error('Error adding asset:', error);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!selectedAsset || !user?.id) return;
+
+    const updatedAsset: Asset = {
+      id: selectedAsset,
+      name: formData.name,
+      value: parseFloat(formData.value),
+      category: formData.category as any,
+      purchaseDate: formData.purchaseDate || undefined,
+      appreciationRate: formData.appreciationRate ? parseFloat(formData.appreciationRate) : undefined,
+      notes: formData.notes || undefined
+    };
+
+    try {
+      const response = await fetch(
+        `${SERVER_URL}/api/user-profile/assets/${selectedAsset}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clerkUserId: user.id,
+            ...updatedAsset
+          }),
+        }
+      );
+
+      if (response.ok) {
+        setAssets(assets.map(asset => 
+          asset.id === selectedAsset ? updatedAsset : asset
+        ));
+        setIsModalOpen(false);
+        setIsEditing(false);
+        resetForm();
+      } else {
+        console.error('Failed to update asset');
+      }
+    } catch (error) {
+      console.error('Error updating asset:', error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!user?.id || !confirm('Are you sure you want to delete this asset?')) return;
+
+    try {
+      const response = await fetch(
+        `${SERVER_URL}/api/user-profile/assets/${id}?clerkUserId=${user.id}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        setAssets(assets.filter(asset => asset.id !== id));
+      } else {
+        console.error('Failed to delete asset');
+      }
+    } catch (error) {
+      console.error('Error deleting asset:', error);
+    }
+  };
+
+  const openAddModal = () => {
+    resetForm();
     setIsEditing(false);
-    setFormData({
-      name: '',
-      value: '',
-      category: 'realestate',
-      purchaseDate: '',
-      appreciationRate: '',
-      notes: ''
-    });
     setIsModalOpen(true);
   };
 
-  const handleEdit = (asset: Asset) => {
-    setIsEditing(true);
-    setSelectedAsset(asset.id);
+  const openEditModal = (asset: Asset) => {
     setFormData({
       name: asset.name,
       value: asset.value.toString(),
@@ -87,299 +208,212 @@ export const AssetsTab = () => {
       appreciationRate: asset.appreciationRate?.toString() || '',
       notes: asset.notes || ''
     });
+    setSelectedAsset(asset.id);
+    setIsEditing(true);
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setAssets(assets.filter(asset => asset.id !== id));
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      value: '',
+      category: 'bank',
+      purchaseDate: '',
+      appreciationRate: '',
+      notes: ''
+    });
+    setSelectedAsset(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const newAsset: Asset = {
-      id: isEditing ? selectedAsset! : Math.random().toString(36).substr(2, 9),
-      name: formData.name,
-      value: parseFloat(formData.value),
-      category: formData.category as Asset['category'],
-      ...(formData.purchaseDate && { purchaseDate: formData.purchaseDate }),
-      ...(formData.appreciationRate && { appreciationRate: parseFloat(formData.appreciationRate) }),
-      ...(formData.notes && { notes: formData.notes })
-    };
-
     if (isEditing) {
-      setAssets(assets.map(asset => asset.id === selectedAsset ? newAsset : asset));
+      handleEdit();
     } else {
-      setAssets([...assets, newAsset]);
+      handleAdd();
     }
-
-    setIsModalOpen(false);
   };
 
-  const fillDemoData = () => {
-    const demoAssets = [
-      {
-        name: "3 BHK Apartment",
-        value: "7500000",
-        category: "realestate",
-        purchaseDate: new Date().toISOString().split('T')[0],
-        appreciationRate: "8",
-        notes: "Prime location in city center, fully furnished"
-      },
-      {
-        name: "Stock Portfolio",
-        value: "1200000",
-        category: "investments",
-        purchaseDate: new Date().toISOString().split('T')[0],
-        appreciationRate: "12",
-        notes: "Diversified across blue-chip stocks"
-      },
-      {
-        name: "Toyota Fortuner",
-        value: "3500000",
-        category: "vehicles",
-        purchaseDate: new Date().toISOString().split('T')[0],
-        appreciationRate: "-10",
-        notes: "2022 Model, Premium Variant"
-      },
-      {
-        name: "Fixed Deposits",
-        value: "500000",
-        category: "bank",
-        purchaseDate: new Date().toISOString().split('T')[0],
-        appreciationRate: "6.5",
-        notes: "5-year term deposit"
-      },
-      {
-        name: "Emergency Fund",
-        value: "300000",
-        category: "cash",
-        purchaseDate: new Date().toISOString().split('T')[0],
-        appreciationRate: "0",
-        notes: "Liquid cash for emergencies"
-      }
-    ];
-
-    const randomAsset = demoAssets[Math.floor(Math.random() * demoAssets.length)];
-    setFormData(randomAsset);
-  };
-
-  const getTotalAssetValue = () => {
-    return assets.reduce((total, asset) => total + asset.value, 0);
-  };
-
-  const getCategoryTotal = (category: Asset['category']) => {
-    return assets
-      .filter(asset => asset.category === category)
-      .reduce((total, asset) => total + asset.value, 0);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const getAssetAllocation = () => {
-    const total = getTotalAssetValue();
-    return Object.keys(categoryIcons).map(category => ({
-      category,
-      percentage: ((getCategoryTotal(category as Asset['category']) / total) * 100).toFixed(1)
-    }));
-  };
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-8">
-      {/* Header with Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white">
-          <h3 className="text-lg font-medium opacity-90">Total Asset Value</h3>
-          <div className="mt-4 flex items-baseline">
-            <span className="text-3xl font-bold">{formatCurrency(getTotalAssetValue())}</span>
-          </div>
+    <div className="space-y-6">
+      {/* Add Asset Button */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Assets</h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Track your valuable assets and investments
+          </p>
         </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Asset Categories</h4>
-            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-              {new Set(assets.map(a => a.category)).size}
-            </p>
-          </div>
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Assets</h4>
-            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-              {assets.length}
-            </p>
-          </div>
-        </div>
+        <button
+          onClick={openAddModal}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
+        >
+          <Plus className="w-5 h-5" />
+          Add Asset
+        </button>
       </div>
 
-      {/* Asset Allocation */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Asset Allocation</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {getAssetAllocation().map(({ category, percentage }) => {
-            const Icon = categoryIcons[category as keyof typeof categoryIcons];
-            const color = categoryColors[category as keyof typeof categoryColors];
-            return (
-              <div
-                key={category}
-                className={`p-4 rounded-xl bg-${color}-50 dark:bg-${color}-900/20`}
-              >
-                <div className={`p-2 rounded-lg bg-${color}-100 dark:bg-${color}-900/30 w-fit`}>
-                  <Icon className={`h-6 w-6 text-${color}-500`} />
-                </div>
-                <p className="mt-3 text-sm font-medium text-gray-600 dark:text-gray-400 capitalize">
-                  {category}
-                </p>
-                <div className="mt-1 flex items-baseline space-x-2">
-                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                    {percentage}%
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {formatCurrency(getCategoryTotal(category as Asset['category']))}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+      {/* Asset List */}
+      {assets.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600 dark:text-gray-400 text-lg">No assets tracked yet</p>
+          <p className="text-gray-500 dark:text-gray-500 text-sm mt-2">
+            Start tracking your assets to understand your net worth
+          </p>
         </div>
-      </div>
-
-      {/* Assets List */}
-      <div>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Assets List</h2>
-          <button
-            onClick={handleAdd}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Asset
-          </button>
-        </div>
-
-        <div className="space-y-4">
+      ) : (
+        <div className="grid gap-4">
           {assets.map((asset) => {
             const Icon = categoryIcons[asset.category];
             const color = categoryColors[asset.category];
             return (
               <div
                 key={asset.id}
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:shadow-md transition-shadow"
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className={`p-2 rounded-lg bg-${color}-100 dark:bg-${color}-900/30`}>
-                      <Icon className={`h-6 w-6 text-${color}-500`} />
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-4 flex-1">
+                    <div className={`p-3 bg-${color}-100 dark:bg-${color}-900/30 rounded-lg`}>
+                      <Icon className={`w-6 h-6 text-${color}-600 dark:text-${color}-400`} />
                     </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900 dark:text-white">{asset.name}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
-                        {asset.category}
-                        {asset.appreciationRate && (
-                          <span className="ml-2 text-emerald-600 dark:text-emerald-400">
-                            +{asset.appreciationRate}% /year
-                          </span>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {asset.name}
+                      </h3>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        <span>{categoryLabels[asset.category]}</span>
+                        {asset.purchaseDate && (
+                          <>
+                            <span>•</span>
+                            <span>Purchased: {new Date(asset.purchaseDate).toLocaleDateString()}</span>
+                          </>
                         )}
+                        {asset.appreciationRate && (
+                          <>
+                            <span>•</span>
+                            <span>{asset.appreciationRate}% annual growth</span>
+                          </>
+                        )}
+                      </div>
+                      {asset.notes && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                          {asset.notes}
+                        </p>
+                      )}
+                      <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-3">
+                        ₹{asset.value.toLocaleString('en-IN')}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {formatCurrency(asset.value)}
-                    </span>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(asset)}
-                        className="p-1 text-gray-400 hover:text-gray-500"
-                      >
-                        <Edit2 className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(asset.id)}
-                        className="p-1 text-gray-400 hover:text-red-500"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openEditModal(asset)}
+                      className="p-2 text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors"
+                    >
+                      <Edit2 className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(asset.id)}
+                      className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
-                {asset.notes && (
-                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                    {asset.notes}
-                  </p>
-                )}
               </div>
             );
           })}
         </div>
-      </div>
+      )}
+
+      {/* Total Assets Summary */}
+      {assets.length > 0 && (
+        <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-emerald-100 text-sm">Total Asset Value</p>
+              <p className="text-3xl font-bold mt-1">
+                ₹{assets.reduce((sum, asset) => sum + asset.value, 0).toLocaleString('en-IN')}
+              </p>
+            </div>
+            <DollarSign className="w-12 h-12 text-white/30" />
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-500/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {isEditing ? 'Edit Asset' : 'Add New Asset'}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                {isEditing ? 'Edit Asset' : 'Add Asset'}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-500"
+                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               >
-                <X className="h-6 w-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Asset Name
+                  Asset Name *
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="e.g., Mumbai Apartment"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Value
+                  Current Value (₹) *
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-400">₹</span>
-                  </div>
-                  <input
-                    type="number"
-                    value={formData.value}
-                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                    className="w-full pl-10 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
-                    required
-                  />
-                </div>
+                <input
+                  type="number"
+                  value={formData.value}
+                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="5000000"
+                  min="0"
+                  step="0.01"
+                  required
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Category
+                  Category *
                 </label>
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  required
                 >
-                  {Object.keys(categoryIcons).map((category) => (
-                    <option key={category} value={category}>
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
-                    </option>
-                  ))}
+                  <option value="realestate">Real Estate</option>
+                  <option value="investments">Investments</option>
+                  <option value="vehicles">Vehicles</option>
+                  <option value="bank">Bank Account</option>
+                  <option value="cash">Cash</option>
+                  <option value="other">Other</option>
                 </select>
               </div>
 
@@ -391,21 +425,23 @@ export const AssetsTab = () => {
                   type="date"
                   value={formData.purchaseDate}
                   onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Annual Appreciation Rate % (Optional)
+                  Annual Appreciation Rate (%) (Optional)
                 </label>
                 <input
                   type="number"
-                  step="0.1"
                   value={formData.appreciationRate}
                   onChange={(e) => setFormData({ ...formData, appreciationRate: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
-                  placeholder="e.g., 5.5"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="5.5"
+                  min="0"
+                  max="100"
+                  step="0.1"
                 />
               </div>
 
@@ -416,32 +452,25 @@ export const AssetsTab = () => {
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="Additional details..."
                   rows={3}
-                  placeholder="Add any additional information about this asset"
                 />
               </div>
 
-              <div className="flex justify-end space-x-4 mt-6">
-                <button
-                  type="button"
-                  onClick={fillDemoData}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Demo Data
-                </button>
+              <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700"
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
                 >
-                  {isEditing ? 'Save Changes' : 'Add Asset'}
+                  {isEditing ? 'Update' : 'Add'}
                 </button>
               </div>
             </form>
@@ -450,4 +479,6 @@ export const AssetsTab = () => {
       )}
     </div>
   );
-}; 
+};
+
+// End of frontend/src/pages/MyData/tabs/AssetsTab.tsx

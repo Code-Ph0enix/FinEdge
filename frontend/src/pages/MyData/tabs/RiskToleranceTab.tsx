@@ -1,8 +1,19 @@
-import { useState } from 'react';
-import { TrendingUp, ShieldAlert, BarChart } from 'lucide-react';
+/**
+ * FinEdge Risk Tolerance Tab - MongoDB Connected
+ * 
+ * Displays and allows updating user's risk tolerance level.
+ * Syncs with MongoDB user profile.
+ * 
+ * @version 2.0.0 - MongoDB Integration
+ */
+
+import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/clerk-react';
+import { TrendingUp, ShieldAlert, BarChart, Save, AlertCircle } from 'lucide-react';
+import { SERVER_URL } from '../../../utils/utils';
 
 interface RiskLevel {
-  value: number;
+  value: string;
   label: string;
   description: string;
   color: string;
@@ -12,7 +23,7 @@ interface RiskLevel {
 
 const riskLevels: RiskLevel[] = [
   {
-    value: 1,
+    value: 'conservative',
     label: 'Conservative',
     description: 'Focus on preserving capital with minimal risk tolerance',
     color: 'bg-blue-500',
@@ -25,20 +36,20 @@ const riskLevels: RiskLevel[] = [
     ]
   },
   {
-    value: 2,
+    value: 'moderately_conservative',
     label: 'Moderately Conservative',
     description: 'Emphasis on stability with some growth potential',
     color: 'bg-cyan-500',
     icon: <ShieldAlert className="h-6 w-6 text-cyan-500" />,
     strategy: [
-      'Mix of bonds and some stocks (60/40)',
-      'Focus on blue-chip stocks',
-      'Regular income generation',
-      'Balance between growth and security'
+      'Balanced mix of bonds and stocks',
+      'Focus on dividend-paying stocks',
+      'Moderate growth with risk management',
+      'Good for medium-term goals'
     ]
   },
   {
-    value: 3,
+    value: 'moderate',
     label: 'Moderate',
     description: 'Balanced approach between growth and security',
     color: 'bg-green-500',
@@ -46,137 +57,250 @@ const riskLevels: RiskLevel[] = [
     strategy: [
       'Equal mix of stocks and bonds',
       'Diversified portfolio across sectors',
-      'Moderate growth with reasonable risk',
-      'Medium to long-term investment horizon'
+      'Moderate growth expectations',
+      'Balanced risk-reward ratio'
     ]
   },
   {
-    value: 4,
+    value: 'moderately_aggressive',
     label: 'Moderately Aggressive',
-    description: 'Higher risk tolerance for potentially greater returns',
+    description: 'Higher growth potential with increased risk tolerance',
     color: 'bg-orange-500',
     icon: <TrendingUp className="h-6 w-6 text-orange-500" />,
     strategy: [
-      'Higher allocation to stocks (70-80%)',
-      'Some exposure to international markets',
-      'Acceptance of market volatility',
+      'Higher allocation to growth stocks',
+      'Potential for international exposure',
+      'Accept market volatility for returns',
       'Long-term growth focus'
     ]
   },
   {
-    value: 5,
+    value: 'aggressive',
     label: 'Aggressive',
     description: 'Maximum growth potential with highest risk tolerance',
     color: 'bg-red-500',
     icon: <TrendingUp className="h-6 w-6 text-red-500" />,
     strategy: [
-      'Predominantly stocks and growth investments',
-      'Global market exposure',
-      'Comfortable with significant volatility',
+      'Predominantly growth stocks',
+      'Emerging markets and high-growth sectors',
+      'Accept significant volatility',
       'Very long-term investment horizon'
     ]
   }
 ];
 
 export const RiskToleranceTab = () => {
-  const [selectedRisk, setSelectedRisk] = useState<number>(3);
-  const currentRiskLevel = riskLevels.find(level => level.value === selectedRisk)!;
+  const { user } = useUser();
+  const [selectedRisk, setSelectedRisk] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Fetch current risk tolerance from MongoDB
+  useEffect(() => {
+    const fetchRiskTolerance = async () => {
+      if (!user?.id) return;
+
+      try {
+        setIsLoading(true);
+        const response = await fetch(
+          `${SERVER_URL}/api/onboarding/status?clerkUserId=${user.id}`,
+          {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.profile?.riskTolerance) {
+            setSelectedRisk(data.profile.riskTolerance);
+          }
+        } else {
+          console.error('Failed to fetch risk tolerance');
+        }
+      } catch (error) {
+        console.error('Error fetching risk tolerance:', error);
+        setError('Failed to load risk tolerance data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRiskTolerance();
+  }, [user]);
+
+  const handleRiskSelect = (riskValue: string) => {
+    setSelectedRisk(riskValue);
+    setHasChanges(riskValue !== selectedRisk);
+    setSuccessMessage(null);
+    setError(null);
+  };
+
+  const handleSave = async () => {
+    if (!user?.id || !selectedRisk) return;
+
+    try {
+      setIsSaving(true);
+      setError(null);
+      
+      const response = await fetch(`${SERVER_URL}/api/onboarding/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clerkUserId: user.id,
+          riskTolerance: selectedRisk,
+          // Keep existing data - just update risk tolerance
+          income: [],
+          expenses: [],
+          assets: [],
+          liabilities: []
+        }),
+      });
+
+      if (response.ok) {
+        setSuccessMessage('Risk tolerance updated successfully!');
+        setHasChanges(false);
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError('Failed to update risk tolerance');
+      }
+    } catch (error) {
+      console.error('Error saving risk tolerance:', error);
+      setError('An error occurred while saving');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  const selectedRiskLevel = riskLevels.find(level => level.value === selectedRisk);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-8">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Risk Tolerance Profile</h2>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Adjust your risk tolerance level to match your investment goals and comfort with market volatility.
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Risk Tolerance</h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Define your investment risk comfort level
+          </p>
+        </div>
+        {hasChanges && (
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-200 disabled:opacity-50"
+          >
+            <Save className="w-5 h-5" />
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </button>
+        )}
       </div>
 
-      {/* Risk Slider */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Conservative</span>
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Aggressive</span>
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div className="p-4 bg-green-100 dark:bg-green-900/30 border border-green-500 rounded-lg flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+          <p className="text-green-700 dark:text-green-300">{successMessage}</p>
         </div>
-        
-        {/* Custom 5-Point Slider */}
-        <div className="relative">
-          {/* Slider Track */}
-          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
-            <div 
-              className="absolute h-2 rounded-full transition-all duration-300"
-              style={{
-                width: `${((selectedRisk - 1) / 4) * 100}%`,
-                background: `linear-gradient(to right, ${riskLevels.slice(0, selectedRisk).map(level => level.color.replace('bg-', '')).join(', ')})`
-              }}
-            />
-          </div>
+      )}
 
-          {/* Slider Points */}
-          <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between px-1">
-            {riskLevels.map((level) => (
-              <button
-                key={level.value}
-                onClick={() => setSelectedRisk(level.value)}
-                className={`w-4 h-4 rounded-full transition-all duration-300 -ml-2 first:ml-0 last:ml-0 ${
-                  selectedRisk >= level.value 
-                    ? level.color + ' ring-4 ring-opacity-50 ' + level.color.replace('bg-', 'ring-')
-                    : 'bg-gray-300 dark:bg-gray-600'
-                }`}
-              />
-            ))}
-          </div>
+      {error && (
+        <div className="p-4 bg-red-100 dark:bg-red-900/30 border border-red-500 rounded-lg flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <p className="text-red-700 dark:text-red-300">{error}</p>
         </div>
+      )}
 
-        {/* Selected Risk Level Label */}
-        <div className="text-center">
-          <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-700">
-            {currentRiskLevel.icon}
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {currentRiskLevel.label}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Risk Level Details */}
-      <div className="mt-8 p-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-        <div className="space-y-6">
-          {/* Description */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Profile Description
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300">
-              {currentRiskLevel.description}
-            </p>
-          </div>
-
-          {/* Investment Strategy */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-              Recommended Investment Strategy
-            </h3>
-            <div className="grid gap-3">
-              {currentRiskLevel.strategy.map((point, index) => (
-                <div key={index} className="flex items-start space-x-3">
-                  <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${currentRiskLevel.color}`} />
-                  <p className="text-gray-600 dark:text-gray-300">{point}</p>
-                </div>
-              ))}
+      {/* Current Selection Summary */}
+      {selectedRiskLevel && (
+        <div className="p-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl shadow-lg">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-lg">
+              {selectedRiskLevel.icon}
+            </div>
+            <div>
+              <p className="text-sm text-white/80">Current Risk Level</p>
+              <h3 className="text-2xl font-bold">{selectedRiskLevel.label}</h3>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Risk Level Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {riskLevels.map((level) => (
+          <button
+            key={level.value}
+            onClick={() => handleRiskSelect(level.value)}
+            className={`p-6 rounded-xl text-left transition-all duration-200 ${
+              selectedRisk === level.value
+                ? 'bg-indigo-100 dark:bg-indigo-900/30 border-2 border-indigo-500 shadow-lg scale-105'
+                : 'bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md'
+            }`}
+          >
+            <div className="flex items-start gap-4 mb-4">
+              <div className={`p-3 rounded-lg ${level.color} bg-opacity-20`}>
+                {level.icon}
+              </div>
+              <div className="flex-1">
+                <h3 className={`text-lg font-bold mb-1 ${
+                  selectedRisk === level.value 
+                    ? 'text-indigo-700 dark:text-indigo-300' 
+                    : 'text-gray-900 dark:text-white'
+                }`}>
+                  {level.label}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {level.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                Investment Strategy
+              </p>
+              <ul className="space-y-1">
+                {level.strategy.map((point, index) => (
+                  <li key={index} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
+                    <span className={`mt-1 w-1.5 h-1.5 rounded-full ${level.color}`} />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </button>
+        ))}
       </div>
 
-      {/* Action Button */}
-      <div className="flex justify-end mt-6">
-        <button
-          className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white hover:from-indigo-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all"
-        >
-          Update Risk Profile
-        </button>
+      {/* Info Box */}
+      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+          <div className="text-sm text-blue-700 dark:text-blue-300">
+            <p className="font-semibold mb-1">Investment Guidance</p>
+            <p>
+              Your risk tolerance determines the types of investments recommended for you. 
+              Consider your financial goals, investment timeline, and comfort with market fluctuations 
+              when selecting your risk level. You can change this anytime.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
-}; 
+};
+
+// End of frontend/src/pages/MyData/tabs/RiskToleranceTab.tsx

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SERVER_URL } from '../utils';
+import { SERVER_URL } from '../utils/utils';
 import { 
   StockPrice, 
   MarketGainer, 

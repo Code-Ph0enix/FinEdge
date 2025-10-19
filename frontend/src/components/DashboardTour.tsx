@@ -26,18 +26,39 @@ const DashboardTour = ({ children }: DashboardTourProps) => {
     }
   }, [user, openTour]);
 
+  // UPDATED TOUR STEPS - Now includes new features
   const steps = [
     {
       selector: ".tour-logo",
-      content: "Welcome to FinEdge! This is your personal financial dashboard.",
+      content: "Welcome to FinEdge! Your intelligent personal finance companion powered by MongoDB and AI.",
     },
     {
       selector: ".tour-portfolio",
-      content: "View your portfolio overview, including total assets, investments, and performance metrics.",
+      content: "📊 Portfolio Overview - See your net worth, asset allocation, risk analysis, and beautiful financial visualizations all in one place!",
     },
     {
       selector: ".tour-my-data",
-      content: "Manage your financial data, including assets, liabilities, and income streams.",
+      content: "💰 My Data - Add and manage your income, expenses, assets, liabilities, financial goals, and risk tolerance. All data is securely stored in MongoDB.",
+    },
+    {
+      selector: ".tour-recommendations",
+      content: "💡 Recommendations - Get personalized investment advice based on your financial profile and risk tolerance.",
+    },
+    {
+      selector: ".tour-learn",
+      content: "📚 Money Matters - Learn financial concepts, investment strategies, and money management skills.",
+    },
+    {
+      selector: ".tour-ai-assistant",
+      content: "🤖 AI Assistant - Chat with our intelligent financial advisor! Ask questions, get advice, or discuss your financial goals.",
+    },
+    {
+      selector: ".tour-theme-toggle",
+      content: "🌓 Theme Toggle - Switch between light and dark mode anytime! Your preference is automatically saved.",
+    },
+    {
+      selector: ".tour-profile",
+      content: "👤 Your Profile - Access your account settings and personal information.",
     },
   ];
 
@@ -49,12 +70,12 @@ const DashboardTour = ({ children }: DashboardTourProps) => {
           isOpen={isTourOpen}
           onRequestClose={closeTour}
           nextButton={
-            <button style={{ padding: "8px 16px", backgroundColor: "#4F46E5", color: "#FFF" }}>
+            <button style={{ padding: "8px 16px", backgroundColor: "#4F46E5", color: "#FFF", borderRadius: "6px", border: "none", cursor: "pointer" }}>
               Next →
             </button>
           }
           prevButton={
-            <button style={{ padding: "8px 16px", backgroundColor: "#4F46E5", color: "#FFF" }}>
+            <button style={{ padding: "8px 16px", backgroundColor: "#6B7280", color: "#FFF", borderRadius: "6px", border: "none", cursor: "pointer" }}>
               ← Prev
             </button>
           }
@@ -66,8 +87,9 @@ const DashboardTour = ({ children }: DashboardTourProps) => {
                 right: "8px",
                 background: "transparent",
                 border: "none",
-                fontSize: "18px",
+                fontSize: "20px",
                 cursor: "pointer",
+                color: "#6B7280",
               }}
               onClick={closeTour}
             >
@@ -79,17 +101,20 @@ const DashboardTour = ({ children }: DashboardTourProps) => {
               onClick={closeTour}
               style={{
                 padding: "8px 16px",
-                backgroundColor: "#4F46E5",
+                backgroundColor: "#10B981",
                 color: "#FFF",
+                borderRadius: "6px",
+                border: "none",
+                cursor: "pointer"
               }}
             >
-              Finish Tour
+              🎉 Finish Tour
             </button>
           }
           customComponents={{
             Navigation: ({ currentStep, stepsLength }: { currentStep: number; stepsLength: number }) => (
-              <div style={{ marginTop: "16px", textAlign: "center" }}>
-                {currentStep + 1} of {stepsLength}
+              <div style={{ marginTop: "16px", textAlign: "center", fontSize: "12px", color: "#6B7280" }}>
+                Step {currentStep + 1} of {stepsLength}
               </div>
             ),
           }}
@@ -98,8 +123,14 @@ const DashboardTour = ({ children }: DashboardTourProps) => {
               backgroundColor: user?.publicMetadata?.darkMode ? "#1F2937" : "#FFFFFF",
               textColor: user?.publicMetadata?.darkMode ? "#F3F4F6" : "#1F2937",
               arrowColor: "#4F46E5",
+              overlayColor: "rgba(0, 0, 0, 0.7)",
             },
           }}
+          rounded={8}
+          showNavigation={true}
+          showButtons={true}
+          showNavigationNumber={false}
+          disableInteraction={true}
         />
       )}
       {children}

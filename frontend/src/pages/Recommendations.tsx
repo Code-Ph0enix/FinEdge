@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, DollarSign, BarChart2, PieChart, Target, Shield, Briefcase, ChevronRight, ArrowUpRight, ArrowDownRight, Building2, Landmark, Wallet } from 'lucide-react';
+import { TrendingUp, IndianRupeeIcon, BarChart2, PieChart, Target, Shield, Briefcase, ChevronRight, ArrowUpRight, ArrowDownRight, Building2, Landmark, Wallet } from 'lucide-react';
 
 interface Investment {
   symbol: string;

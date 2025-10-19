@@ -1,16 +1,6 @@
-"""
-FinEdge Backend API
-
-A comprehensive financial platform backend providing:
-- AI-powered financial agent endpoints
-- Real-time market data from 25+ indices
-- Financial planning and analysis tools
-- Chatbot integration with advanced AI models
-
-Author: FinEdge Team
-Version: 1.0.0
-"""
-
+# ===========================================================================================================
+#                                          MAIN BACKEND CODE - app.py
+# ===========================================================================================================
 # Standard library imports
 import json
 import logging
@@ -19,6 +9,14 @@ import re
 import subprocess
 import sys
 from datetime import datetime
+# NEW - ADDED: MongoDB imports for user data management
+from database import get_database, close_database_connection, Collections, test_connection
+from models import (
+    UserProfileSchema, IncomeSchema, ExpenseSchema, 
+    AssetSchema, LiabilitySchema, serialize_document,
+    calculate_net_worth, calculate_monthly_cash_flow
+)
+from bson import ObjectId
 
 # ✅ ADD THESE TWO LINES TO SILENCE YFINANCE
 yf_logger = logging.getLogger('yfinance')
@@ -29,6 +27,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import yfinance as yf
 import pandas as pd
+
+# NEW - ADDED: Reduce werkzeug (Flask) logging verbosity
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 # Local imports
 try:
@@ -74,21 +75,26 @@ except ImportError as e:
     cleanup_old_sessions = None
     gemini_fin_path = None
 
-
-# try:
-#     from jgaad_ai_agent_backup import jgaad_chat_with_gemini, clear_chat_session, get_active_sessions, get_chat_history
-#     import gemini_fin_path
-# except ImportError:
-#     logging.warning("Could not import AI modules")
-#     jgaad_chat_with_gemini = None
-#     clear_chat_session = None
-#     get_active_sessions = None
-#     get_chat_history = None
-#     gemini_fin_path = None
-
 # Initialize Flask application
 app = Flask(__name__)
 CORS(app)
+
+# NEW - UPDATED: Database initialization for Flask 3.0
+def init_app():
+    """Initialize application and database connection"""
+    with app.app_context():
+        try:
+            # UPDATED - Single clean message
+            test_connection()
+            logger.info("🚀 FinEdge Backend Ready")
+        except Exception:
+            logger.warning("⚠️ MongoDB will connect on first request")
+
+# NEW - UPDATED: Cleanup on app teardown
+@app.teardown_appcontext
+def shutdown_database(exception=None):
+    """Close database connection when app shuts down"""
+    close_database_connection()
 
 
 @app.route('/', methods=['GET'])
@@ -216,131 +222,6 @@ def agent():
     except Exception as e:
         logger.error(f"[{session_id}] Error in agent endpoint: {e}")
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
-
-
-# @app.route('/agent', methods=['POST'])
-# def agent():
-#     inp = request.form.get('input')
-#     session_id = request.form.get('session_id', 'default')  # Get session ID from request
-    
-#     if not inp:
-#         return jsonify({'error': 'No input provided'}), 400
-    
-#     # Basic input validation
-#     if len(inp) > 1000:  # Prevent extremely long inputs
-#         return jsonify({'error': 'Input too long'}), 400
-    
-#     try:
-#         print(f"Processing input: {inp}")
-        
-#         # Add timeout to prevent hanging - use full path to ensure correct environment
-#         import os
-#         import sys
-#         python_executable = sys.executable  # Use the same Python that's running Flask
-#         agent_path = os.path.join(os.path.dirname(__file__), 'agent.py')
-        
-#         process = subprocess.Popen(
-#             [python_executable, agent_path, inp], 
-#             stdout=subprocess.PIPE, 
-#             stderr=subprocess.PIPE,
-#             universal_newlines=True,
-#             cwd=os.path.dirname(__file__)  # Set working directory to backend folder
-#         )
-        
-#         output = []
-#         # Stream output in real-time
-#         if process.stdout is not None:
-#             while True:
-#                 line = process.stdout.readline()
-#                 if not line and process.poll() is not None:
-#                     break
-#                 if line:
-#                     print(line.strip())  # Print to terminal in real-time
-#                     output.append(line)
-#         else:
-#             logger.error("process.stdout is None")
-        
-#         output_str = ''.join(output)
-#         return_code = process.wait()
-        
-#         # Check if process failed
-#         if return_code != 0:
-#             if process.stderr is not None:
-#                 stderr = process.stderr.read()
-#             else:
-#                 stderr = ""
-#                 logger.error("process.stderr is None")
-#             logger.error(f"Agent script failed with return code {return_code}")
-#             logger.error(f"STDERR: {stderr}")
-#             logger.error(f"STDOUT: {output_str}")
-#             return jsonify({
-#                 'error': 'Agent processing failed', 
-#                 'details': stderr[:500],  # Include error details for debugging
-#                 'return_code': return_code
-#             }), 500
-        
-#         # Debug: Log the full output to see what we received
-#         logger.info(f"Agent output: {output_str[:500]}...")  # Log first 500 chars
-        
-#         # Use regex to extract the response between <Response> tags
-#         final_answer = re.search(r'<Response>(.*?)</Response>', output_str, re.DOTALL)
-#         if final_answer:
-#             final_answer = final_answer.group(1).strip()
-#         else:
-#             logger.warning(f"No <Response> tags found in output. Full output: {output_str}")
-#             # Try to extract the agent's final answer differently
-#             if "Final Answer:" in output_str:
-#                 # Extract everything after "Final Answer:"
-#                 final_answer = output_str.split("Final Answer:")[-1].strip()
-#             else:
-#                 # Fallback to backup AI if available
-#                 if jgaad_chat_with_gemini:
-#                     try:
-#                         final_answer = jgaad_chat_with_gemini(inp, output_str, session_id)
-#                     except Exception as e:
-#                         logger.error(f"Backup AI failed: {e}")
-#                         final_answer = "Error processing request"
-#                 else:
-#                     final_answer = f"Agent ran but no proper response found. Output: {output_str[-200:]}"
-        
-#         return jsonify({'output': final_answer, 'thought': output_str})
-        
-#     except subprocess.TimeoutExpired:
-#         process.kill()
-#         return jsonify({'error': 'Request timed out'}), 500
-#     except Exception as e:
-#         logger.error(f"Error in agent endpoint: {e}")
-#         return jsonify({'error': 'Internal server error'}), 500
-
-# @app.route('/ai-financial-path', methods=['POST'])
-# def ai_financial_path():
-#     # Fix the original bug - check if 'input' exists in form data
-#     if 'input' not in request.form:
-#         return jsonify({'error': 'No input provided'}), 400
-        
-#     input_text = request.form.get('input', '').strip()
-#     if not input_text:
-#         return jsonify({'error': 'Input cannot be empty'}), 400
-        
-#     risk = request.form.get('risk', 'conservative')
-    
-#     # Validate risk level
-#     allowed_risks = ['conservative', 'moderate', 'aggressive']
-#     if risk not in allowed_risks:
-#         return jsonify({'error': f'Invalid risk level. Allowed: {allowed_risks}'}), 400
-    
-#     print(f"Processing financial path for: {input_text}, risk: {risk}")
-    
-#     if not gemini_fin_path:
-#         return jsonify({'error': 'Financial AI service not available'}), 503
-    
-#     try:
-#         response = gemini_fin_path.get_gemini_response(input_text, risk)
-#         return jsonify(response)
-#     except Exception as e:
-#         logger.error(f"Financial path error: {e}")
-#         return jsonify({'error': 'Something went wrong'}), 500
-
 
 @app.route('/ai-financial-path', methods=['POST'])
 def ai_financial_path():
@@ -708,25 +589,6 @@ def get_session_info_endpoint():
         logger.error(f"Error getting session info: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-
-# @app.route('/clear-chat-session', methods=['POST'])
-# def clear_chat_session_endpoint():
-#     """Clear a specific chat session"""
-#     try:
-#         session_id = request.form.get('session_id', 'default')
-        
-#         if clear_chat_session:
-#             success = clear_chat_session(session_id)
-#             return jsonify({
-#                 'success': success,
-#                 'message': f'Session {session_id} cleared successfully' if success else f'Session {session_id} not found'
-#             })
-#         else:
-#             return jsonify({'error': 'Session management not available'}), 503
-            
-#     except Exception as e:
-#         logger.error(f"Error clearing chat session: {e}")
-#         return jsonify({'error': 'Internal server error'}), 500
 @app.route('/clear-chat-session', methods=['POST'])
 def clear_chat_session_endpoint():
     """
@@ -748,25 +610,6 @@ def clear_chat_session_endpoint():
     except Exception as e:
         logger.error(f"Error clearing chat session: {e}")
         return jsonify({'error': 'Internal server error'}), 500
-
-# @app.route('/active-sessions', methods=['GET'])
-# def get_active_sessions_endpoint():
-#     """Get list of all active chat sessions"""
-#     try:
-#         if get_active_sessions:
-#             sessions = get_active_sessions()
-#             return jsonify({
-#                 'active_sessions': sessions,
-#                 'count': len(sessions)
-#             })
-#         else:
-#             return jsonify({'error': 'Session management not available'}), 503
-            
-#     except Exception as e:
-#         logger.error(f"Error getting active sessions: {e}")
-#         return jsonify({'error': 'Internal server error'}), 500
-
-
 
 @app.route('/active-sessions', methods=['GET'])
 def get_active_sessions_endpoint():
@@ -823,28 +666,624 @@ def get_chat_history_endpoint():
         logger.error(f"Error getting chat history: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-# @app.route('/chat-history', methods=['GET'])
-# def get_chat_history_endpoint():
-#     """Get chat history for a specific session"""
-#     try:
-#         session_id = request.args.get('session_id', 'default')
+# ==================== NEW - ADDED: USER ONBOARDING & PROFILE ENDPOINTS ====================
+
+@app.route('/api/onboarding/status', methods=['GET'])
+def get_onboarding_status():
+    """
+    Check if user has completed onboarding.
+    
+    Query Params:
+        clerkUserId: User's Clerk authentication ID
         
-#         if get_chat_history:
-#             history = get_chat_history(session_id)
-#             return jsonify({
-#                 'session_id': session_id,
-#                 'history': history,
-#                 'message_count': len(history)
-#             })
-#         else:
-#             return jsonify({'error': 'Session management not available'}), 503
+    Returns:
+        {
+            "onboardingCompleted": bool,
+            "onboardingStep": int,
+            "profile": dict (if exists)
+        }
+    """
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        user_profile = db[Collections.USER_PROFILES].find_one({"clerkUserId": clerk_user_id})
+        
+        if user_profile:
+            return jsonify({
+                'onboardingCompleted': user_profile.get('onboardingCompleted', False),
+                'onboardingStep': user_profile.get('onboardingStep', 0),
+                'profile': serialize_document(user_profile)
+            })
+        else:
+            # User doesn't exist yet - create default profile
+            default_profile = UserProfileSchema.create_default(clerk_user_id)
+            result = db[Collections.USER_PROFILES].insert_one(default_profile)
+            default_profile['_id'] = result.inserted_id
             
-#     except Exception as e:
-#         logger.error(f"Error getting chat history: {e}")
-#         return jsonify({'error': 'Internal server error'}), 500
+            return jsonify({
+                'onboardingCompleted': False,
+                'onboardingStep': 0,
+                'profile': serialize_document(default_profile)
+            })
+            
+    except Exception as e:
+        logger.error(f"Error checking onboarding status: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
-# =================== BOTS ===================
-# Add your bot endpoints here
 
-if __name__ == "__main__":
-    app.run(debug=True)
+@app.route('/api/onboarding/complete', methods=['POST'])
+def complete_onboarding():
+    """
+    Save complete onboarding data (all 5 steps).
+    
+    Request Body:
+        {
+            "clerkUserId": str,
+            "riskTolerance": str,
+            "income": [IncomeEntry],
+            "expenses": [ExpenseEntry],
+            "assets": [AssetEntry],
+            "liabilities": [LiabilityEntry]
+        }
+        
+    Returns:
+        {
+            "success": bool,
+            "message": str,
+            "profileId": str
+        }
+    """
+    try:
+        data = request.json
+        clerk_user_id = data.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        
+        # Update or create user profile
+        user_profile = {
+            "clerkUserId": clerk_user_id,
+            "onboardingCompleted": True,
+            "onboardingStep": 5,
+            "riskTolerance": data.get('riskTolerance'),
+            "updatedAt": datetime.utcnow()
+        }
+        
+        result = db[Collections.USER_PROFILES].update_one(
+            {"clerkUserId": clerk_user_id},
+            {"$set": user_profile},
+            upsert=True
+        )
+        
+        # Save income entries
+        income_entries = data.get('income', [])
+        if income_entries:
+            # Delete existing entries for this user
+            db[Collections.INCOME].delete_many({"clerkUserId": clerk_user_id})
+            # Insert new entries
+            for entry in income_entries:
+                income_doc = IncomeSchema.create(
+                    clerk_user_id=clerk_user_id,
+                    source=entry['source'],
+                    amount=entry['amount'],
+                    frequency=entry['frequency'],
+                    category=entry['category'],
+                    date=entry['date']
+                )
+                db[Collections.INCOME].insert_one(income_doc)
+        
+        # Save expense entries
+        expense_entries = data.get('expenses', [])
+        if expense_entries:
+            db[Collections.EXPENSES].delete_many({"clerkUserId": clerk_user_id})
+            for entry in expense_entries:
+                expense_doc = ExpenseSchema.create(
+                    clerk_user_id=clerk_user_id,
+                    name=entry['name'],
+                    amount=entry['amount'],
+                    category=entry['category'],
+                    frequency=entry['frequency'],
+                    date=entry['date'],
+                    is_essential=entry.get('isEssential', False)
+                )
+                db[Collections.EXPENSES].insert_one(expense_doc)
+        
+        # Save asset entries
+        asset_entries = data.get('assets', [])
+        if asset_entries:
+            db[Collections.ASSETS].delete_many({"clerkUserId": clerk_user_id})
+            for entry in asset_entries:
+                asset_doc = AssetSchema.create(
+                    clerk_user_id=clerk_user_id,
+                    name=entry['name'],
+                    value=entry['value'],
+                    category=entry['category'],
+                    purchase_date=entry.get('purchaseDate'),
+                    appreciation_rate=entry.get('appreciationRate'),
+                    notes=entry.get('notes')
+                )
+                db[Collections.ASSETS].insert_one(asset_doc)
+        
+        # Save liability entries
+        liability_entries = data.get('liabilities', [])
+        if liability_entries:
+            db[Collections.LIABILITIES].delete_many({"clerkUserId": clerk_user_id})
+            for entry in liability_entries:
+                liability_doc = LiabilitySchema.create(
+                    clerk_user_id=clerk_user_id,
+                    name=entry['name'],
+                    amount=entry['amount'],
+                    category=entry['category'],
+                    interest_rate=entry.get('interestRate'),
+                    due_date=entry.get('dueDate'),
+                    monthly_payment=entry.get('monthlyPayment'),
+                    notes=entry.get('notes')
+                )
+                db[Collections.LIABILITIES].insert_one(liability_doc)
+        
+        logger.info(f"✅ Onboarding completed for user: {clerk_user_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Onboarding completed successfully',
+            'profileId': str(result.upserted_id) if result.upserted_id else None
+        })
+        
+    except Exception as e:
+        logger.error(f"Error completing onboarding: {e}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+
+@app.route('/api/user-profile', methods=['GET'])
+def get_user_profile():
+    """
+    Get complete user profile with all financial data.
+    
+    Query Params:
+        clerkUserId: User's Clerk ID
+        
+    Returns:
+        {
+            "profile": UserProfile,
+            "income": [IncomeEntry],
+            "expenses": [ExpenseEntry],
+            "assets": [AssetEntry],
+            "liabilities": [LiabilityEntry],
+            "summary": {
+                "totalIncome": float,
+                "totalExpenses": float,
+                "totalAssets": float,
+                "totalLiabilities": float,
+                "netWorth": float
+            }
+        }
+    """
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        
+        # Get user profile
+        user_profile = db[Collections.USER_PROFILES].find_one({"clerkUserId": clerk_user_id})
+        if not user_profile:
+            return jsonify({'error': 'User profile not found'}), 404
+        
+        # Get all financial entries
+        income = list(db[Collections.INCOME].find({"clerkUserId": clerk_user_id}))
+        expenses = list(db[Collections.EXPENSES].find({"clerkUserId": clerk_user_id}))
+        assets = list(db[Collections.ASSETS].find({"clerkUserId": clerk_user_id}))
+        liabilities = list(db[Collections.LIABILITIES].find({"clerkUserId": clerk_user_id}))
+        
+        # Calculate summary statistics
+        total_income = sum(entry['amount'] for entry in income)
+        total_expenses = sum(entry['amount'] for entry in expenses)
+        total_assets = sum(entry['value'] for entry in assets)
+        total_liabilities = sum(entry['amount'] for entry in liabilities)
+        net_worth = calculate_net_worth(total_assets, total_liabilities)
+        
+        return jsonify({
+            'profile': serialize_document(user_profile),
+            'income': [serialize_document(doc) for doc in income],
+            'expenses': [serialize_document(doc) for doc in expenses],
+            'assets': [serialize_document(doc) for doc in assets],
+            'liabilities': [serialize_document(doc) for doc in liabilities],
+            'summary': {
+                'totalIncome': total_income,
+                'totalExpenses': total_expenses,
+                'totalAssets': total_assets,
+                'totalLiabilities': total_liabilities,
+                'netWorth': net_worth
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching user profile: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ==================== INDIVIDUAL ENTRY CRUD ENDPOINTS ====================
+
+@app.route('/api/user-profile/income', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def manage_income():
+    """CRUD operations for income entries"""
+    try:
+        clerk_user_id = request.args.get('clerkUserId') or request.json.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        
+        if request.method == 'GET':
+            # Get all income entries
+            income = list(db[Collections.INCOME].find({"clerkUserId": clerk_user_id}))
+            return jsonify({'income': [serialize_document(doc) for doc in income]})
+        
+        elif request.method == 'POST':
+            # Add new income entry
+            data = request.json
+            income_doc = IncomeSchema.create(
+                clerk_user_id=clerk_user_id,
+                source=data['source'],
+                amount=data['amount'],
+                frequency=data['frequency'],
+                category=data['category'],
+                date=data['date']
+            )
+            result = db[Collections.INCOME].insert_one(income_doc)
+            income_doc['_id'] = result.inserted_id
+            return jsonify({'success': True, 'income': serialize_document(income_doc)}), 201
+        
+        elif request.method == 'PUT':
+            # Update income entry
+            data = request.json
+            entry_id = data.get('_id')
+            if not entry_id:
+                return jsonify({'error': '_id is required for update'}), 400
+            
+            update_data = {k: v for k, v in data.items() if k not in ['_id', 'clerkUserId']}
+            update_data['updatedAt'] = datetime.utcnow()
+            
+            db[Collections.INCOME].update_one(
+                {"_id": ObjectId(entry_id), "clerkUserId": clerk_user_id},
+                {"$set": update_data}
+            )
+            return jsonify({'success': True, 'message': 'Income updated'})
+        
+        elif request.method == 'DELETE':
+            # Delete income entry
+            entry_id = request.args.get('entryId')
+            if not entry_id:
+                return jsonify({'error': 'entryId is required'}), 400
+            
+            db[Collections.INCOME].delete_one({"_id": ObjectId(entry_id), "clerkUserId": clerk_user_id})
+            return jsonify({'success': True, 'message': 'Income deleted'})
+            
+    except Exception as e:
+        logger.error(f"Error managing income: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/user-profile/expenses', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def manage_expenses():
+    """CRUD operations for expense entries"""
+    try:
+        clerk_user_id = request.args.get('clerkUserId') or request.json.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        
+        if request.method == 'GET':
+            expenses = list(db[Collections.EXPENSES].find({"clerkUserId": clerk_user_id}))
+            return jsonify({'expenses': [serialize_document(doc) for doc in expenses]})
+        
+        elif request.method == 'POST':
+            data = request.json
+            expense_doc = ExpenseSchema.create(
+                clerk_user_id=clerk_user_id,
+                name=data['name'],
+                amount=data['amount'],
+                category=data['category'],
+                frequency=data['frequency'],
+                date=data['date'],
+                is_essential=data.get('isEssential', False)
+            )
+            result = db[Collections.EXPENSES].insert_one(expense_doc)
+            expense_doc['_id'] = result.inserted_id
+            return jsonify({'success': True, 'expense': serialize_document(expense_doc)}), 201
+        
+        elif request.method == 'PUT':
+            data = request.json
+            entry_id = data.get('_id')
+            if not entry_id:
+                return jsonify({'error': '_id is required for update'}), 400
+            
+            update_data = {k: v for k, v in data.items() if k not in ['_id', 'clerkUserId']}
+            update_data['updatedAt'] = datetime.utcnow()
+            
+            db[Collections.EXPENSES].update_one(
+                {"_id": ObjectId(entry_id), "clerkUserId": clerk_user_id},
+                {"$set": update_data}
+            )
+            return jsonify({'success': True, 'message': 'Expense updated'})
+        
+        elif request.method == 'DELETE':
+            entry_id = request.args.get('entryId')
+            if not entry_id:
+                return jsonify({'error': 'entryId is required'}), 400
+            
+            db[Collections.EXPENSES].delete_one({"_id": ObjectId(entry_id), "clerkUserId": clerk_user_id})
+            return jsonify({'success': True, 'message': 'Expense deleted'})
+            
+    except Exception as e:
+        logger.error(f"Error managing expenses: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/user-profile/assets', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def manage_assets():
+    """CRUD operations for asset entries"""
+    try:
+        clerk_user_id = request.args.get('clerkUserId') or request.json.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        
+        if request.method == 'GET':
+            assets = list(db[Collections.ASSETS].find({"clerkUserId": clerk_user_id}))
+            return jsonify({'assets': [serialize_document(doc) for doc in assets]})
+        
+        elif request.method == 'POST':
+            data = request.json
+            asset_doc = AssetSchema.create(
+                clerk_user_id=clerk_user_id,
+                name=data['name'],
+                value=data['value'],
+                category=data['category'],
+                purchase_date=data.get('purchaseDate'),
+                appreciation_rate=data.get('appreciationRate'),
+                notes=data.get('notes')
+            )
+            result = db[Collections.ASSETS].insert_one(asset_doc)
+            asset_doc['_id'] = result.inserted_id
+            return jsonify({'success': True, 'asset': serialize_document(asset_doc)}), 201
+        
+        elif request.method == 'PUT':
+            data = request.json
+            entry_id = data.get('_id')
+            if not entry_id:
+                return jsonify({'error': '_id is required for update'}), 400
+            
+            update_data = {k: v for k, v in data.items() if k not in ['_id', 'clerkUserId']}
+            update_data['updatedAt'] = datetime.utcnow()
+            
+            db[Collections.ASSETS].update_one(
+                {"_id": ObjectId(entry_id), "clerkUserId": clerk_user_id},
+                {"$set": update_data}
+            )
+            return jsonify({'success': True, 'message': 'Asset updated'})
+        
+        elif request.method == 'DELETE':
+            entry_id = request.args.get('entryId')
+            if not entry_id:
+                return jsonify({'error': 'entryId is required'}), 400
+            
+            db[Collections.ASSETS].delete_one({"_id": ObjectId(entry_id), "clerkUserId": clerk_user_id})
+            return jsonify({'success': True, 'message': 'Asset deleted'})
+            
+    except Exception as e:
+        logger.error(f"Error managing assets: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/user-profile/liabilities', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def manage_liabilities():
+    """CRUD operations for liability entries"""
+    try:
+        clerk_user_id = request.args.get('clerkUserId') or request.json.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        
+        if request.method == 'GET':
+            liabilities = list(db[Collections.LIABILITIES].find({"clerkUserId": clerk_user_id}))
+            return jsonify({'liabilities': [serialize_document(doc) for doc in liabilities]})
+        
+        elif request.method == 'POST':
+            data = request.json
+            liability_doc = LiabilitySchema.create(
+                clerk_user_id=clerk_user_id,
+                name=data['name'],
+                amount=data['amount'],
+                category=data['category'],
+                interest_rate=data.get('interestRate'),
+                due_date=data.get('dueDate'),
+                monthly_payment=data.get('monthlyPayment'),
+                notes=data.get('notes')
+            )
+            result = db[Collections.LIABILITIES].insert_one(liability_doc)
+            liability_doc['_id'] = result.inserted_id
+            return jsonify({'success': True, 'liability': serialize_document(liability_doc)}), 201
+        
+        elif request.method == 'PUT':
+            data = request.json
+            entry_id = data.get('_id')
+            if not entry_id:
+                return jsonify({'error': '_id is required for update'}), 400
+            
+            update_data = {k: v for k, v in data.items() if k not in ['_id', 'clerkUserId']}
+            update_data['updatedAt'] = datetime.utcnow()
+            
+            db[Collections.LIABILITIES].update_one(
+                {"_id": ObjectId(entry_id), "clerkUserId": clerk_user_id},
+                {"$set": update_data}
+            )
+            return jsonify({'success': True, 'message': 'Liability updated'})
+        
+        elif request.method == 'DELETE':
+            entry_id = request.args.get('entryId')
+            if not entry_id:
+                return jsonify({'error': 'entryId is required'}), 400
+            
+            db[Collections.LIABILITIES].delete_one({"_id": ObjectId(entry_id), "clerkUserId": clerk_user_id})
+            return jsonify({'success': True, 'message': 'Liability deleted'})
+            
+    except Exception as e:
+        logger.error(f"Error managing liabilities: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+    
+# ==========================================
+# GOALS ENDPOINTS
+# ==========================================
+
+@app.route('/api/user-profile/goals', methods=['GET'])
+def get_goals():
+    """Get all goals for a user"""
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        db = get_database()
+        # Find user profile in USER_PROFILES collection
+        user_profile = db[Collections.USER_PROFILES].find_one({'clerkUserId': clerk_user_id})
+        
+        if not user_profile:
+            return jsonify({'goals': []}), 200
+        
+        # Goals are stored as an array inside user_profile document
+        goals = user_profile.get('goals', [])
+        return jsonify({'goals': goals}), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching goals: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-profile/goals', methods=['POST'])
+def add_goal():
+    """Add a new goal"""
+    try:
+        data = request.json
+        clerk_user_id = data.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        # Extract goal data
+        goal_data = {
+            'id': data.get('id'),
+            'name': data.get('name'),
+            'icon': data.get('icon'),
+            'target': data.get('target'),
+            'current': data.get('current')
+        }
+
+        db = get_database()
+        # Update user profile - add goal to goals array
+        result = db[Collections.USER_PROFILES].update_one(
+            {'clerkUserId': clerk_user_id},
+            {
+                '$push': {'goals': goal_data},
+                '$set': {'updatedAt': datetime.utcnow()}
+            },
+            upsert=True
+        )
+
+        return jsonify({
+            'message': 'Goal added successfully',
+            'goal': goal_data
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error adding goal: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-profile/goals/<goal_id>', methods=['PUT'])
+def update_goal(goal_id):
+    """Update an existing goal"""
+    try:
+        data = request.json
+        clerk_user_id = data.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        db = get_database()
+        # Update the specific goal in the array using positional operator $
+        result = db[Collections.USER_PROFILES].update_one(
+            {
+                'clerkUserId': clerk_user_id,
+                'goals.id': goal_id
+            },
+            {
+                '$set': {
+                    'goals.$.name': data.get('name'),
+                    'goals.$.icon': data.get('icon'),
+                    'goals.$.target': data.get('target'),
+                    'goals.$.current': data.get('current'),
+                    'updatedAt': datetime.utcnow()
+                }
+            }
+        )
+
+        if result.modified_count == 0:
+            return jsonify({'error': 'Goal not found'}), 404
+
+        return jsonify({'message': 'Goal updated successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Error updating goal: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-profile/goals/<goal_id>', methods=['DELETE'])
+def delete_goal(goal_id):
+    """Delete a goal"""
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        db = get_database()
+        # Remove the goal from the array using $pull
+        result = db[Collections.USER_PROFILES].update_one(
+            {'clerkUserId': clerk_user_id},
+            {
+                '$pull': {'goals': {'id': goal_id}},
+                '$set': {'updatedAt': datetime.utcnow()}
+            }
+        )
+
+        if result.modified_count == 0:
+            return jsonify({'error': 'Goal not found'}), 404
+
+        return jsonify({'message': 'Goal deleted successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Error deleting goal: {e}")
+        return jsonify({'error': str(e)}), 500
+    
+
+# ==================== END OF NEW ENDPOINTS ====================
+
+if __name__ == '__main__':
+    init_app()
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)

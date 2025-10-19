@@ -1,0 +1,4519 @@
+import React, { useState, useEffect } from 'react';
+import { IndianRupeeIcon, Plus, Trash2, Edit2, X, Briefcase, Gift, Landmark, TrendingUp } from 'lucide-react';
+
+interface Income {
+  id: string;
+  source: string;
+  amount: number;
+  frequency: 'monthly' | 'yearly' | 'one-time';
+  category: 'salary' | 'investment' | 'gift' | 'other';
+  date: string;
+}
+
+const categoryIcons = {
+  salary: Briefcase,
+  investment: TrendingUp,
+  gift: Gift,
+  other: Landmark
+};
+
+export const IncomeTab = () => {
+  const [incomes, setIncomes] = useState<Income[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedIncome, setSelectedIncome] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    source: '',
+    amount: '',
+    frequency: 'monthly',
+    category: 'salary',
+    date: new Date().toISOString().split('T')[0]
+  });
+
+  // Load incomes from localStorage on component mount
+  useEffect(() => {
+    const savedIncomes = localStorage.getItem('userIncomes');
+    if (savedIncomes) {
+      try {
+        const parsedIncomes = JSON.parse(savedIncomes);
+        setIncomes(parsedIncomes);
+      } catch (error) {
+        console.error('Error loading incomes from localStorage:', error);
+        setIncomes([]);
+      }
+    }
+  }, []);
+
+  // Save incomes to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('userIncomes', JSON.stringify(incomes));
+  }, [incomes]);
+
+  const handleAdd = () => {
+    setIsEditing(false);
+    setFormData({
+      source: '',
+      amount: '',
+      frequency: 'monthly',
+      category: 'salary',
+      date: new Date().toISOString().split('T')[0]
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (income: Income) => {
+    setIsEditing(true);
+    setSelectedIncome(income.id);
+    setFormData({
+      source: income.source,
+      amount: income.amount.toString(),
+      frequency: income.frequency,
+      category: income.category,
+      date: income.date
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    setIncomes(incomes.filter(income => income.id !== id));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newIncome: Income = {
+      id: isEditing ? selectedIncome! : Math.random().toString(36).substr(2, 9),
+      source: formData.source,
+      amount: parseFloat(formData.amount),
+      frequency: formData.frequency as 'monthly' | 'yearly' | 'one-time',
+      category: formData.category as 'salary' | 'investment' | 'gift' | 'other',
+      date: formData.date
+    };
+
+    if (isEditing) {
+      setIncomes(incomes.map(income => income.id === selectedIncome ? newIncome : income));
+    } else {
+      setIncomes([...incomes, newIncome]);
+    }
+
+    setIsModalOpen(false);
+  };
+
+  const getTotalMonthlyIncome = () => {
+    return incomes.reduce((total, income) => {
+      const amount = income.amount;
+      switch (income.frequency) {
+        case 'monthly':
+          return total + amount;
+        case 'yearly':
+          return total + amount / 12;
+        case 'one-time':
+          return total;
+        default:
+          return total;
+      }
+    }, 0);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const fillDemoData = () => {
+    const demoIncomes = [
+      {
+        source: "Software Engineer Salary",
+        amount: "150000",
+        frequency: "monthly",
+        category: "salary",
+        date: new Date().toISOString().split('T')[0]
+      },
+      {
+        source: "Stock Market Returns",
+        amount: "50000",
+        frequency: "monthly",
+        category: "investment",
+        date: new Date().toISOString().split('T')[0]
+      },
+      {
+        source: "Freelance Project",
+        amount: "200000",
+        frequency: "one-time",
+        category: "other",
+        date: new Date().toISOString().split('T')[0]
+      },
+      {
+        source: "Dividend Income",
+        amount: "75000",
+        frequency: "yearly",
+        category: "investment",
+        date: new Date().toISOString().split('T')[0]
+      }
+    ];
+
+    const randomIncome = demoIncomes[Math.floor(Math.random() * demoIncomes.length)];
+    setFormData({
+      ...formData,
+      ...randomIncome
+    });
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-8">
+      {/* Header with Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white">
+          <h3 className="text-lg font-medium opacity-90">Total Monthly Income</h3>
+          <div className="mt-4 flex items-baseline">
+            <span className="text-3xl font-bold">{formatCurrency(getTotalMonthlyIncome())}</span>
+            <span className="ml-2 text-sm opacity-75">/month</span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Sources</h4>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{incomes.length}</p>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Yearly Total</h4>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              {formatCurrency(getTotalMonthlyIncome() * 12)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Income List */}
+      <div>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Income Sources</h2>
+          <button
+            onClick={handleAdd}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Income
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {incomes.map((income) => {
+            const Icon = categoryIcons[income.category];
+            return (
+              <div
+                key={income.id}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className={`p-2 rounded-lg ${
+                      income.category === 'salary' ? 'bg-green-100 text-green-600' :
+                      income.category === 'investment' ? 'bg-blue-100 text-blue-600' :
+                      income.category === 'gift' ? 'bg-purple-100 text-purple-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">{income.source}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {income.frequency.charAt(0).toUpperCase() + income.frequency.slice(1)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {formatCurrency(income.amount)}
+                    </span>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEdit(income)}
+                        className="p-1 text-gray-400 hover:text-gray-500"
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(income.id)}
+                        className="p-1 text-gray-400 hover:text-red-500"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Add/Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-gray-500/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {isEditing ? 'Edit Income Source' : 'Add Income Source'}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Source Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.source}
+                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Amount
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400">₹</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    className="w-full pl-10 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Frequency
+                  </label>
+                  <select
+                    value={formData.frequency}
+                    onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="one-time">One-time</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                  >
+                    <option value="salary">Salary</option>
+                    <option value="investment">Investment</option>
+                    <option value="gift">Gift</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={fillDemoData}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Demo Data
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  {isEditing ? 'Save Changes' : 'Add Income'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { IndianRupeeIcon, Plus, Trash2, Edit2, X, ShoppingCart, Home, Car, Utensils, Heart, Plane, Smartphone, Zap } from 'lucide-react';
+
+interface Expense {
+  id: string;
+  name: string;
+  amount: number;
+  category: 'shopping' | 'housing' | 'transport' | 'food' | 'health' | 'travel' | 'utilities' | 'other';
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time';
+  date: string;
+  isEssential: boolean;
+}
+
+const categoryIcons = {
+  shopping: ShoppingCart,
+  housing: Home,
+  transport: Car,
+  food: Utensils,
+  health: Heart,
+  travel: Plane,
+  utilities: Zap,
+  other: Smartphone
+};
+
+const categoryColors = {
+  shopping: 'blue',
+  housing: 'green',
+  transport: 'orange',
+  food: 'yellow',
+  health: 'red',
+  travel: 'purple',
+  utilities: 'indigo',
+  other: 'gray'
+};
+
+export const ExpensesTab = () => {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    amount: '',
+    category: 'housing',
+    frequency: 'monthly',
+    date: new Date().toISOString().split('T')[0],
+    isEssential: true
+  });
+
+  // Load expenses from localStorage on component mount
+  useEffect(() => {
+    const savedExpenses = localStorage.getItem('userExpenses');
+    if (savedExpenses) {
+      try {
+        const parsedExpenses = JSON.parse(savedExpenses);
+        setExpenses(parsedExpenses);
+      } catch (error) {
+        console.error('Error loading expenses from localStorage:', error);
+        setExpenses([]);
+      }
+    }
+  }, []);
+
+  // Save expenses to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('userExpenses', JSON.stringify(expenses));
+  }, [expenses]);
+
+  const handleAdd = () => {
+    setIsEditing(false);
+    setFormData({
+      name: '',
+      amount: '',
+      category: 'housing',
+      frequency: 'monthly',
+      date: new Date().toISOString().split('T')[0],
+      isEssential: true
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (expense: Expense) => {
+    setIsEditing(true);
+    setSelectedExpense(expense.id);
+    setFormData({
+      name: expense.name,
+      amount: expense.amount.toString(),
+      category: expense.category,
+      frequency: expense.frequency,
+      date: expense.date,
+      isEssential: expense.isEssential
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    setExpenses(expenses.filter(expense => expense.id !== id));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newExpense: Expense = {
+      id: isEditing ? selectedExpense! : Math.random().toString(36).substr(2, 9),
+      name: formData.name,
+      amount: parseFloat(formData.amount),
+      category: formData.category as Expense['category'],
+      frequency: formData.frequency as Expense['frequency'],
+      date: formData.date,
+      isEssential: formData.isEssential
+    };
+
+    if (isEditing) {
+      setExpenses(expenses.map(expense => expense.id === selectedExpense ? newExpense : expense));
+    } else {
+      setExpenses([...expenses, newExpense]);
+    }
+
+    setIsModalOpen(false);
+  };
+
+  const getTotalMonthlyExpenses = () => {
+    return expenses.reduce((total, expense) => {
+      const amount = expense.amount;
+      switch (expense.frequency) {
+        case 'daily':
+          return total + (amount * 30);
+        case 'weekly':
+          return total + (amount * 4);
+        case 'monthly':
+          return total + amount;
+        case 'yearly':
+          return total + (amount / 12);
+        case 'one-time':
+          return total;
+        default:
+          return total;
+      }
+    }, 0);
+  };
+
+  const getEssentialExpenses = () => {
+    return expenses
+      .filter(expense => expense.isEssential)
+      .reduce((total, expense) => total + expense.amount, 0);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const getCategoryTotal = (category: Expense['category']) => {
+    return expenses
+      .filter(expense => expense.category === category)
+      .reduce((total, expense) => total + expense.amount, 0);
+  };
+
+  const fillDemoData = () => {
+    const demoExpenses = [
+      {
+        name: "Monthly Rent",
+        amount: "25000",
+        category: "housing",
+        frequency: "monthly",
+        date: new Date().toISOString().split('T')[0],
+        isEssential: true
+      },
+      {
+        name: "Grocery Shopping",
+        amount: "12000",
+        category: "food",
+        frequency: "monthly",
+        date: new Date().toISOString().split('T')[0],
+        isEssential: true
+      },
+      {
+        name: "Phone Bill",
+        amount: "999",
+        category: "utilities",
+        frequency: "monthly",
+        date: new Date().toISOString().split('T')[0],
+        isEssential: true
+      },
+      {
+        name: "Weekend Trip",
+        amount: "15000",
+        category: "travel",
+        frequency: "one-time",
+        date: new Date().toISOString().split('T')[0],
+        isEssential: false
+      },
+      {
+        name: "New Laptop",
+        amount: "85000",
+        category: "shopping",
+        frequency: "one-time",
+        date: new Date().toISOString().split('T')[0],
+        isEssential: false
+      },
+      {
+        name: "Health Insurance",
+        amount: "20000",
+        category: "health",
+        frequency: "yearly",
+        date: new Date().toISOString().split('T')[0],
+        isEssential: true
+      }
+    ];
+
+    const randomExpense = demoExpenses[Math.floor(Math.random() * demoExpenses.length)];
+    setFormData(randomExpense);
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-8">
+      {/* Header with Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-6 text-white">
+          <h3 className="text-lg font-medium opacity-90">Total Monthly Expenses</h3>
+          <div className="mt-4 flex items-baseline">
+            <span className="text-3xl font-bold">{formatCurrency(getTotalMonthlyExpenses())}</span>
+            <span className="ml-2 text-sm opacity-75">/month</span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Essential Expenses</h4>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              {formatCurrency(getEssentialExpenses())}
+            </p>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Categories</h4>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              {new Set(expenses.map(e => e.category)).size}
+            </p>
+          </div>
+          </div>
+        </div>
+
+      {/* Category Overview */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {Object.entries(categoryIcons).map(([category, Icon]) => (
+          <div 
+            key={category}
+            className={`p-4 rounded-xl bg-${categoryColors[category as keyof typeof categoryColors]}-50 dark:bg-${categoryColors[category as keyof typeof categoryColors]}-900/20`}
+          >
+            <div className="flex items-center space-x-3">
+              <div className={`p-2 rounded-lg bg-${categoryColors[category as keyof typeof categoryColors]}-100 dark:bg-${categoryColors[category as keyof typeof categoryColors]}-900/30`}>
+                <Icon className={`h-5 w-5 text-${categoryColors[category as keyof typeof categoryColors]}-500`} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 capitalize">
+                  {category}
+                </p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {formatCurrency(getCategoryTotal(category as Expense['category']))}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Expenses List */}
+      <div>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Expenses List</h2>
+          <button
+            onClick={handleAdd}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Expense
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {expenses.map((expense) => {
+            const Icon = categoryIcons[expense.category];
+            const color = categoryColors[expense.category];
+            return (
+              <div
+                key={expense.id}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className={`p-2 rounded-lg bg-${color}-100 dark:bg-${color}-900/30`}>
+                      <Icon className={`h-6 w-6 text-${color}-500`} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white flex items-center">
+                        {expense.name}
+                        {expense.isEssential && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                            Essential
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {expense.frequency.charAt(0).toUpperCase() + expense.frequency.slice(1)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {formatCurrency(expense.amount)}
+                    </span>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEdit(expense)}
+                        className="p-1 text-gray-400 hover:text-gray-500"
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(expense.id)}
+                        className="p-1 text-gray-400 hover:text-red-500"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Add/Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-gray-500/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {isEditing ? 'Edit Expense' : 'Add New Expense'}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Expense Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-red-500 dark:bg-gray-700"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Amount
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400">₹</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    className="w-full pl-10 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-red-500 dark:bg-gray-700"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-red-500 dark:bg-gray-700"
+                  >
+                    {Object.keys(categoryIcons).map((category) => (
+                      <option key={category} value={category}>
+                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Frequency
+                  </label>
+                  <select
+                    value={formData.frequency}
+                    onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-red-500 dark:bg-gray-700"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="one-time">One-time</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-red-500 dark:bg-gray-700"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isEssential"
+                  checked={formData.isEssential}
+                  onChange={(e) => setFormData({ ...formData, isEssential: e.target.checked })}
+                  className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                />
+                <label htmlFor="isEssential" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                  This is an essential expense
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-4 mt-6">
+                <button
+                  type="button"
+                  onClick={fillDemoData}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Demo Data
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700"
+                >
+                  {isEditing ? 'Save Changes' : 'Add Expense'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { IndianRupeeIcon, Plus, Trash2, Edit2, X, Building2, Briefcase, Car, Landmark, Coins, CreditCard } from 'lucide-react';
+
+interface Asset {
+  id: string;
+  name: string;
+  value: number;
+  category: 'realestate' | 'investments' | 'vehicles' | 'bank' | 'cash' | 'other';
+  purchaseDate?: string;
+  appreciationRate?: number;
+  notes?: string;
+}
+
+const categoryIcons = {
+  realestate: Building2,
+  investments: Briefcase,
+  vehicles: Car,
+  bank: Landmark,
+  cash: Coins,
+  other: CreditCard
+};
+
+const categoryColors = {
+  realestate: 'emerald',
+  investments: 'blue',
+  vehicles: 'orange',
+  bank: 'indigo',
+  cash: 'green',
+  other: 'gray'
+};
+
+export const AssetsTab = () => {
+  const [assets, setAssets] = useState<Asset[]>([]);
+
+  // Load assets from localStorage on component mount
+  useEffect(() => {
+    const savedAssets = localStorage.getItem('userAssets');
+    if (savedAssets) {
+      try {
+        const parsedAssets = JSON.parse(savedAssets);
+        setAssets(parsedAssets);
+      } catch (error) {
+        console.error('Error loading assets from localStorage:', error);
+        setAssets([]);
+      }
+    }
+  }, []);
+
+  // Save assets to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('userAssets', JSON.stringify(assets));
+  }, [assets]);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    value: '',
+    category: 'realestate',
+    purchaseDate: '',
+    appreciationRate: '',
+    notes: ''
+  });
+
+  const handleAdd = () => {
+    setIsEditing(false);
+    setFormData({
+      name: '',
+      value: '',
+      category: 'realestate',
+      purchaseDate: '',
+      appreciationRate: '',
+      notes: ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (asset: Asset) => {
+    setIsEditing(true);
+    setSelectedAsset(asset.id);
+    setFormData({
+      name: asset.name,
+      value: asset.value.toString(),
+      category: asset.category,
+      purchaseDate: asset.purchaseDate || '',
+      appreciationRate: asset.appreciationRate?.toString() || '',
+      notes: asset.notes || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    setAssets(assets.filter(asset => asset.id !== id));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newAsset: Asset = {
+      id: isEditing ? selectedAsset! : Math.random().toString(36).substr(2, 9),
+      name: formData.name,
+      value: parseFloat(formData.value),
+      category: formData.category as Asset['category'],
+      ...(formData.purchaseDate && { purchaseDate: formData.purchaseDate }),
+      ...(formData.appreciationRate && { appreciationRate: parseFloat(formData.appreciationRate) }),
+      ...(formData.notes && { notes: formData.notes })
+    };
+
+    if (isEditing) {
+      setAssets(assets.map(asset => asset.id === selectedAsset ? newAsset : asset));
+    } else {
+      setAssets([...assets, newAsset]);
+    }
+
+    setIsModalOpen(false);
+  };
+
+  const fillDemoData = () => {
+    const demoAssets = [
+      {
+        name: "3 BHK Apartment",
+        value: "7500000",
+        category: "realestate",
+        purchaseDate: new Date().toISOString().split('T')[0],
+        appreciationRate: "8",
+        notes: "Prime location in city center, fully furnished"
+      },
+      {
+        name: "Stock Portfolio",
+        value: "1200000",
+        category: "investments",
+        purchaseDate: new Date().toISOString().split('T')[0],
+        appreciationRate: "12",
+        notes: "Diversified across blue-chip stocks"
+      },
+      {
+        name: "Toyota Fortuner",
+        value: "3500000",
+        category: "vehicles",
+        purchaseDate: new Date().toISOString().split('T')[0],
+        appreciationRate: "-10",
+        notes: "2022 Model, Premium Variant"
+      },
+      {
+        name: "Fixed Deposits",
+        value: "500000",
+        category: "bank",
+        purchaseDate: new Date().toISOString().split('T')[0],
+        appreciationRate: "6.5",
+        notes: "5-year term deposit"
+      },
+      {
+        name: "Emergency Fund",
+        value: "300000",
+        category: "cash",
+        purchaseDate: new Date().toISOString().split('T')[0],
+        appreciationRate: "0",
+        notes: "Liquid cash for emergencies"
+      }
+    ];
+
+    const randomAsset = demoAssets[Math.floor(Math.random() * demoAssets.length)];
+    setFormData(randomAsset);
+  };
+
+  const getTotalAssetValue = () => {
+    return assets.reduce((total, asset) => total + asset.value, 0);
+  };
+
+  const getCategoryTotal = (category: Asset['category']) => {
+    return assets
+      .filter(asset => asset.category === category)
+      .reduce((total, asset) => total + asset.value, 0);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const getAssetAllocation = () => {
+    const total = getTotalAssetValue();
+    return Object.keys(categoryIcons).map(category => ({
+      category,
+      percentage: ((getCategoryTotal(category as Asset['category']) / total) * 100).toFixed(1)
+    }));
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-8">
+      {/* Header with Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white">
+          <h3 className="text-lg font-medium opacity-90">Total Asset Value</h3>
+          <div className="mt-4 flex items-baseline">
+            <span className="text-3xl font-bold">{formatCurrency(getTotalAssetValue())}</span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Asset Categories</h4>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              {new Set(assets.map(a => a.category)).size}
+            </p>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Assets</h4>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              {assets.length}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Asset Allocation */}
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Asset Allocation</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {getAssetAllocation().map(({ category, percentage }) => {
+            const Icon = categoryIcons[category as keyof typeof categoryIcons];
+            const color = categoryColors[category as keyof typeof categoryColors];
+            return (
+              <div
+                key={category}
+                className={`p-4 rounded-xl bg-${color}-50 dark:bg-${color}-900/20`}
+              >
+                <div className={`p-2 rounded-lg bg-${color}-100 dark:bg-${color}-900/30 w-fit`}>
+                  <Icon className={`h-6 w-6 text-${color}-500`} />
+                </div>
+                <p className="mt-3 text-sm font-medium text-gray-600 dark:text-gray-400 capitalize">
+                  {category}
+                </p>
+                <div className="mt-1 flex items-baseline space-x-2">
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {percentage}%
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {formatCurrency(getCategoryTotal(category as Asset['category']))}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Assets List */}
+      <div>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Assets List</h2>
+          <button
+            onClick={handleAdd}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Asset
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {assets.map((asset) => {
+            const Icon = categoryIcons[asset.category];
+            const color = categoryColors[asset.category];
+            return (
+              <div
+                key={asset.id}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className={`p-2 rounded-lg bg-${color}-100 dark:bg-${color}-900/30`}>
+                      <Icon className={`h-6 w-6 text-${color}-500`} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">{asset.name}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                        {asset.category}
+                        {asset.appreciationRate && (
+                          <span className="ml-2 text-emerald-600 dark:text-emerald-400">
+                            +{asset.appreciationRate}% /year
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {formatCurrency(asset.value)}
+                    </span>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEdit(asset)}
+                        className="p-1 text-gray-400 hover:text-gray-500"
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(asset.id)}
+                        className="p-1 text-gray-400 hover:text-red-500"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {asset.notes && (
+                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    {asset.notes}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Add/Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-gray-500/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {isEditing ? 'Edit Asset' : 'Add New Asset'}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Asset Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Value
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400">₹</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={formData.value}
+                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                    className="w-full pl-10 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Category
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                >
+                  {Object.keys(categoryIcons).map((category) => (
+                    <option key={category} value={category}>
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Purchase Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={formData.purchaseDate}
+                  onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Annual Appreciation Rate % (Optional)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.appreciationRate}
+                  onChange={(e) => setFormData({ ...formData, appreciationRate: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                  placeholder="e.g., 5.5"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700"
+                  rows={3}
+                  placeholder="Add any additional information about this asset"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-4 mt-6">
+                <button
+                  type="button"
+                  onClick={fillDemoData}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Demo Data
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700"
+                >
+                  {isEditing ? 'Save Changes' : 'Add Asset'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { IndianRupeeIcon, Plus, Trash2, Edit2, X, Home, Car, CreditCard, Wallet, Building, Briefcase } from 'lucide-react';
+
+interface Liability {
+  id: string;
+  name: string;
+  amount: number;
+  monthlyPayment: number;
+  interestRate: number;
+  category: 'mortgage' | 'vehicle' | 'credit' | 'personal' | 'business' | 'other';
+  startDate: string;
+  endDate?: string;
+  isSecured: boolean;
+  notes?: string;
+}
+
+const categoryIcons = {
+  mortgage: Home,
+  vehicle: Car,
+  credit: CreditCard,
+  personal: Wallet,
+  business: Building,
+  other: Briefcase
+};
+
+export const LiabilitiesTab = () => {
+  const [liabilities, setLiabilities] = useState<Liability[]>([]);
+
+  // Load liabilities from localStorage on component mount
+  useEffect(() => {
+    const savedLiabilities = localStorage.getItem('userLiabilities');
+    if (savedLiabilities) {
+      try {
+        const parsedLiabilities = JSON.parse(savedLiabilities);
+        setLiabilities(parsedLiabilities);
+      } catch (error) {
+        console.error('Error loading liabilities from localStorage:', error);
+        setLiabilities([]);
+      }
+    }
+  }, []);
+
+  // Save liabilities to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('userLiabilities', JSON.stringify(liabilities));
+  }, [liabilities]);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedLiability, setSelectedLiability] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    amount: '',
+    monthlyPayment: '',
+    interestRate: '',
+    category: 'mortgage',
+    startDate: '',
+    endDate: '',
+    isSecured: false,
+    notes: ''
+  });
+
+  const handleAdd = () => {
+    setIsEditing(false);
+    setFormData({
+      name: '',
+      amount: '',
+      monthlyPayment: '',
+      interestRate: '',
+      category: 'mortgage',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: '',
+      isSecured: false,
+      notes: ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (liability: Liability) => {
+    setIsEditing(true);
+    setSelectedLiability(liability.id);
+    setFormData({
+      name: liability.name,
+      amount: liability.amount.toString(),
+      monthlyPayment: liability.monthlyPayment.toString(),
+      interestRate: liability.interestRate.toString(),
+      category: liability.category,
+      startDate: liability.startDate,
+      endDate: liability.endDate || '',
+      isSecured: liability.isSecured,
+      notes: liability.notes || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    setLiabilities(liabilities.filter(liability => liability.id !== id));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newLiability: Liability = {
+      id: isEditing ? selectedLiability! : Math.random().toString(36).substr(2, 9),
+      name: formData.name,
+      amount: parseFloat(formData.amount),
+      monthlyPayment: parseFloat(formData.monthlyPayment),
+      interestRate: parseFloat(formData.interestRate),
+      category: formData.category as Liability['category'],
+      startDate: formData.startDate,
+      ...(formData.endDate && { endDate: formData.endDate }),
+      isSecured: formData.isSecured,
+      ...(formData.notes && { notes: formData.notes })
+    };
+
+    if (isEditing) {
+      setLiabilities(liabilities.map(liability => 
+        liability.id === selectedLiability ? newLiability : liability
+      ));
+    } else {
+      setLiabilities([...liabilities, newLiability]);
+    }
+
+    setIsModalOpen(false);
+  };
+
+  const fillDemoData = () => {
+    const demoLiabilities = [
+      {
+        name: "Home Loan",
+        amount: "5000000",
+        monthlyPayment: "42000",
+        interestRate: "7.5",
+        category: "mortgage",
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 20)).toISOString().split('T')[0],
+        isSecured: true,
+        notes: "20-year home loan from SBI"
+      },
+      {
+        name: "Car Loan",
+        amount: "800000",
+        monthlyPayment: "15000",
+        interestRate: "8.5",
+        category: "vehicle",
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString().split('T')[0],
+        isSecured: true,
+        notes: "5-year car loan"
+      },
+      {
+        name: "Credit Card Debt",
+        amount: "120000",
+        monthlyPayment: "12000",
+        interestRate: "36",
+        category: "credit",
+        startDate: new Date().toISOString().split('T')[0],
+        isSecured: false,
+        notes: "High-interest credit card balance"
+      },
+      {
+        name: "Personal Loan",
+        amount: "300000",
+        monthlyPayment: "28000",
+        interestRate: "12",
+        category: "personal",
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
+        isSecured: false,
+        notes: "1-year personal loan for home renovation"
+      },
+      {
+        name: "Business Loan",
+        amount: "2000000",
+        monthlyPayment: "45000",
+        interestRate: "11",
+        category: "business",
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString().split('T')[0],
+        isSecured: true,
+        notes: "5-year business expansion loan"
+      }
+    ];
+
+    const randomLiability = demoLiabilities[Math.floor(Math.random() * demoLiabilities.length)];
+    setFormData(randomLiability);
+  };
+
+  const getTotalLiabilities = () => {
+    return liabilities.reduce((total, liability) => total + liability.amount, 0);
+  };
+
+  const getTotalMonthlyPayments = () => {
+    return liabilities.reduce((total, liability) => total + liability.monthlyPayment, 0);
+  };
+
+  const getDebtToIncomeRatio = () => {
+    const monthlyIncome = 10000; // This should be fetched from income data
+    const monthlyDebt = getTotalMonthlyPayments();
+    return (monthlyDebt / monthlyIncome) * 100;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const getTimeRemaining = (endDate?: string) => {
+    if (!endDate) return null;
+    const end = new Date(endDate);
+    const now = new Date();
+    const months = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth());
+    return months > 0 ? `${months} months remaining` : 'Due';
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-6">
+      {/* Header with Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Liabilities</h3>
+          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+            {formatCurrency(getTotalLiabilities())}
+          </p>
+        </div>
+        
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Monthly Payments</h3>
+          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+            {formatCurrency(getTotalMonthlyPayments())}
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">/month</span>
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Debt-to-Income Ratio</h3>
+          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+            {getDebtToIncomeRatio().toFixed(1)}%
+          </p>
+          </div>
+          </div>
+
+      {/* Liabilities List */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Liabilities</h2>
+            <button
+              onClick={handleAdd}
+              className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add New
+            </button>
+          </div>
+        </div>
+
+        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          {liabilities.map((liability) => {
+            const Icon = categoryIcons[liability.category];
+            const timeRemaining = getTimeRemaining(liability.endDate);
+            return (
+              <div
+                key={liability.id}
+                className="p-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 rounded-md bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                      <Icon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white flex items-center">
+                        {liability.name}
+                        {liability.isSecured && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                            Secured
+                          </span>
+                        )}
+                      </h3>
+                      <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                        <span>{formatCurrency(liability.monthlyPayment)}/month</span>
+                        <span>•</span>
+                        <span>{liability.interestRate}% APR</span>
+                        {timeRemaining && (
+                          <>
+                            <span>•</span>
+                            <span>{timeRemaining}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-lg font-medium text-gray-900 dark:text-white">
+                      {formatCurrency(liability.amount)}
+                    </span>
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => handleEdit(liability)}
+                        className="p-1.5 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(liability.id)}
+                        className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {liability.notes && (
+                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 pl-11">
+                    {liability.notes}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Add/Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-700 shadow-xl">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                {isEditing ? 'Edit Liability' : 'Add New Liability'}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="p-1 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Liability Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Total Amount
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-400">₹</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      className="w-full pl-8 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Monthly Payment
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-400">₹</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={formData.monthlyPayment}
+                      onChange={(e) => setFormData({ ...formData, monthlyPayment: e.target.value })}
+                      className="w-full pl-8 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Interest Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={formData.interestRate}
+                    onChange={(e) => setFormData({ ...formData, interestRate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                  >
+                    {Object.keys(categoryIcons).map((category) => (
+                      <option key={category} value={category}>
+                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    End Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isSecured"
+                  checked={formData.isSecured}
+                  onChange={(e) => setFormData({ ...formData, isSecured: e.target.checked })}
+                  className="h-4 w-4 text-gray-600 border-gray-300 rounded"
+                />
+                <label htmlFor="isSecured" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                  This is a secured liability (backed by collateral)
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700"
+                  rows={3}
+                  placeholder="Add any additional information about this liability"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={fillDemoData}
+                  className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Demo Data
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500"
+                >
+                  {isEditing ? 'Save Changes' : 'Add Liability'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { Target, IndianRupeeIcon, Home, Briefcase, GraduationCap, Car, Plus, Trash2, X, Edit2, LucideIcon, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface Goal {
+  id: string;
+  name: string;
+  icon: LucideIcon;
+  target: string;
+  current: string;
+}
+
+type IconType = keyof typeof availableIcons;
+
+const availableIcons = {
+  Briefcase,
+  Home,
+  GraduationCap,
+  Car,
+  Target
+} as const;
+
+// Add currency formatter
+const formatToINR = (amount: string | number) => {
+  const numericAmount = typeof amount === 'string' ? parseFloat(amount.replace(/[₹,]/g, '')) : amount;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0
+  }).format(numericAmount);
+};
+
+export const GoalsTab = () => {
+  const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    icon: 'Briefcase' as IconType,
+    target: '',
+    current: ''
+  });
+
+  // Load goals from localStorage on component mount
+  useEffect(() => {
+    const savedGoals = localStorage.getItem('userFinancialGoals');
+    if (savedGoals) {
+      try {
+        const parsedGoals = JSON.parse(savedGoals);
+        const reconstitutedGoals = parsedGoals.map((goal: any) => ({
+          ...goal,
+          icon: availableIcons[goal.iconName as keyof typeof availableIcons]
+        }));
+        setGoals(reconstitutedGoals);
+      } catch (error) {
+        console.error('Error loading goals from localStorage:', error);
+        setGoals([]);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const goalsToSave = goals.map(goal => ({
+      ...goal,
+      iconName: getIconForGoal(goal.icon),
+      icon: undefined
+    }));
+    localStorage.setItem('userFinancialGoals', JSON.stringify(goalsToSave));
+  }, [goals]);
+
+  const handleAddGoal = () => {
+    setIsEditing(false);
+    setFormData({
+      name: '',
+      icon: 'Briefcase' as IconType,
+      target: '',
+      current: ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const getIconForGoal = (goalIcon: LucideIcon): IconType => {
+    const iconEntry = Object.entries(availableIcons).find(([_, icon]) => icon === goalIcon);
+    return (iconEntry?.[0] as IconType) || 'Briefcase';
+  };
+
+  const handleEditGoal = () => {
+    if (!selectedGoal) return;
+    const goal = goals.find(g => g.id === selectedGoal);
+    if (!goal) return;
+
+    setIsEditing(true);
+    setFormData({
+      name: goal.name,
+      icon: getIconForGoal(goal.icon),
+      target: goal.target.replace(/[₹,]/g, ''),
+      current: goal.current.replace(/[₹,]/g, '')
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteGoal = () => {
+    if (!selectedGoal) return;
+    setGoals(goals.filter(goal => goal.id !== selectedGoal));
+    setSelectedGoal(null);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const selectedIcon = formData.icon as keyof typeof availableIcons;
+    const newGoal: Goal = {
+      id: isEditing ? selectedGoal! : Math.random().toString(36).substr(2, 9),
+      name: formData.name,
+      icon: availableIcons[selectedIcon],
+      target: formatToINR(formData.target),
+      current: formatToINR(formData.current)
+    };
+
+    if (isEditing) {
+      setGoals(goals.map(goal => goal.id === selectedGoal ? newGoal : goal));
+    } else {
+      setGoals([...goals, newGoal]);
+    }
+
+    setIsModalOpen(false);
+    setFormData({
+      name: '',
+      icon: 'Briefcase' as IconType,
+      target: '',
+      current: ''
+    });
+  };
+
+  const calculateProgress = (current: string, target: string) => {
+    const currentValue = parseFloat(current.replace(/[₹,]/g, ''));
+    const targetValue = parseFloat(target.replace(/[₹,]/g, ''));
+    return ((currentValue / targetValue) * 100).toFixed(1);
+  };
+
+  const fillDemoData = () => {
+    const demoGoals = [
+      {
+        name: "Dream House",
+        icon: "Home" as IconType,
+        target: "5000000",
+        current: "2000000"
+      },
+      {
+        name: "Higher Education",
+        icon: "GraduationCap" as IconType,
+        target: "2500000",
+        current: "1000000"
+      },
+      {
+        name: "Startup Fund",
+        icon: "Briefcase" as IconType,
+        target: "1000000",
+        current: "300000"
+      },
+      {
+        name: "Luxury Car",
+        icon: "Car" as IconType,
+        target: "3000000",
+        current: "500000"
+      }
+    ];
+
+    const randomGoal = demoGoals[Math.floor(Math.random() * demoGoals.length)];
+    setFormData(randomGoal);
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      {/* Header Section */}
+      <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-8 text-white shadow-xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold">Financial Goals</h2>
+            <p className="mt-2 text-indigo-100">Track and manage your financial aspirations</p>
+          </div>
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          onClick={handleAddGoal}
+            className="inline-flex items-center px-6 py-3 bg-white text-indigo-600 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 font-medium"
+        >
+          <Plus className="h-5 w-5 mr-2" />
+          Add New Goal
+          </motion.button>
+        </div>
+        
+        {/* Quick Stats */}
+        <div className="grid grid-cols-3 gap-6 mt-8">
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+            <p className="text-indigo-100">Total Goals</p>
+            <p className="text-3xl font-bold mt-1">{goals.length}</p>
+          </div>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+            <p className="text-indigo-100">Active Goals</p>
+            <p className="text-3xl font-bold mt-1">{goals.filter(g => parseFloat(calculateProgress(g.current, g.target)) < 100).length}</p>
+          </div>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+            <p className="text-indigo-100">Completed Goals</p>
+            <p className="text-3xl font-bold mt-1">{goals.filter(g => parseFloat(calculateProgress(g.current, g.target)) >= 100).length}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Goals List */}
+        <div className="lg:col-span-1">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Goals</h3>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+              <AnimatePresence>
+            {goals.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="p-8 text-center"
+                  >
+                    <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Target className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+              </div>
+                    <p className="text-gray-500 dark:text-gray-400">No goals added yet.</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Click "Add New Goal" to get started.</p>
+                  </motion.div>
+            ) : (
+              goals.map((goal) => {
+                const Icon = goal.icon;
+                    const progress = parseFloat(calculateProgress(goal.current, goal.target));
+                return (
+                      <motion.button
+                    key={goal.id}
+                        layout
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                    onClick={() => setSelectedGoal(goal.id)}
+                        className={`w-full flex items-center p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                      selectedGoal === goal.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''
+                    }`}
+                  >
+                        <div className={`p-3 rounded-xl ${
+                          progress >= 100 
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' 
+                            : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                        }`}>
+                          <Icon className="h-6 w-6" />
+                    </div>
+                        <div className="ml-4 flex-1 text-left">
+                      <h3 className="font-medium text-gray-900 dark:text-white">{goal.name}</h3>
+                          <div className="mt-1 flex items-center text-sm">
+                            <div className="flex-1">
+                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                <div 
+                                  className={`h-1.5 rounded-full transition-all duration-500 ${
+                                    progress >= 100 
+                                      ? 'bg-green-500' 
+                                      : 'bg-indigo-600'
+                                  }`}
+                                  style={{ width: `${Math.min(progress, 100)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            <span className="ml-2 text-gray-500 dark:text-gray-400">{progress}%</span>
+                          </div>
+                    </div>
+                        <ChevronRight className={`h-5 w-5 text-gray-400 transition-transform ${
+                          selectedGoal === goal.id ? 'rotate-90' : ''
+                        }`} />
+                      </motion.button>
+                );
+              })
+            )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
+
+        {/* Goal Details */}
+        <AnimatePresence mode="wait">
+        {selectedGoal && (
+            <motion.div 
+              key={selectedGoal}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="lg:col-span-2"
+            >
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
+                <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Goal Details</h3>
+                <div className="flex space-x-2">
+                    <motion.button 
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    onClick={handleEditGoal}
+                      className="inline-flex items-center px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                  >
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit
+                    </motion.button>
+                    <motion.button 
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    onClick={handleDeleteGoal}
+                      className="inline-flex items-center px-4 py-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                    </motion.button>
+                  </div>
+              </div>
+
+                <div className="p-6 space-y-8">
+              {/* Goal Stats */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/30 rounded-xl p-6">
+                      <p className="text-sm font-medium text-green-600 dark:text-green-400">Current Amount</p>
+                      <div className="mt-2 flex items-center">
+                    <IndianRupeeIcon className="h-5 w-5 text-green-500" />
+                        <span className="text-2xl font-bold text-gray-900 dark:text-white ml-1">
+                      {goals.find(g => g.id === selectedGoal)?.current}
+                    </span>
+                  </div>
+                </div>
+
+                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-900/30 rounded-xl p-6">
+                      <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">Target Amount</p>
+                      <div className="mt-2 flex items-center">
+                    <Target className="h-5 w-5 text-indigo-500" />
+                        <span className="text-2xl font-bold text-gray-900 dark:text-white ml-1">
+                      {goals.find(g => g.id === selectedGoal)?.target}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+                  {/* Progress Section */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-lg font-medium text-gray-900 dark:text-white">Progress</h4>
+                      <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                      {calculateProgress(
+                        goals.find(g => g.id === selectedGoal)?.current || '0',
+                        goals.find(g => g.id === selectedGoal)?.target || '1'
+                      )}%
+                    </span>
+                  </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ 
+                        width: `${calculateProgress(
+                          goals.find(g => g.id === selectedGoal)?.current || '0',
+                          goals.find(g => g.id === selectedGoal)?.target || '1'
+                        )}%` 
+                      }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className="bg-indigo-600 h-3 rounded-full"
+                      />
+                    </div>
+                  </div>
+
+              {/* Recommendations */}
+                <div className="space-y-4">
+                    <h4 className="text-lg font-medium text-gray-900 dark:text-white">Smart Recommendations</h4>
+                    <div className="grid gap-4">
+                  {[
+                        'Increase monthly contribution by ₹5,000 to reach goal faster',
+                    'Consider more aggressive investment strategy',
+                    'Review and rebalance portfolio quarterly',
+                  ].map((recommendation, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl flex items-start space-x-3"
+                        >
+                      <div className="flex-shrink-0">
+                        <div className="w-2 h-2 mt-2 rounded-full bg-indigo-500"></div>
+                      </div>
+                      <p className="text-gray-600 dark:text-gray-300">{recommendation}</p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+        )}
+        </AnimatePresence>
+      </div>
+
+      {/* Add/Edit Goal Modal */}
+      <AnimatePresence>
+      {isModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full shadow-2xl"
+            >
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-center">
+                  <div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {isEditing ? 'Edit Financial Goal' : 'Create New Goal'}
+                </h3>
+                    <p className="mt-2 text-gray-500 dark:text-gray-400">
+                      {isEditing ? 'Update your financial goal details below.' : 'Define your new financial goal with the details below.'}
+                    </p>
+                  </div>
+                  <motion.button 
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                  onClick={() => setIsModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-500 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                  </motion.button>
+                </div>
+            </div>
+
+            {/* Modal Body */}
+              <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                <div className="space-y-6">
+                {/* Goal Name */}
+                  <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Goal Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                    placeholder="e.g., Dream House Down Payment"
+                    required
+                  />
+                </div>
+
+                {/* Icon Selection */}
+                  <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Choose an Icon
+                  </label>
+                  <div className="grid grid-cols-5 gap-4">
+                    {Object.entries(availableIcons).map(([name, Icon]) => (
+                        <motion.button
+                        key={name}
+                        type="button"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        onClick={() => setFormData({ ...formData, icon: name as IconType })}
+                        className={`p-4 rounded-xl flex flex-col items-center gap-2 transition-all ${
+                          formData.icon === name 
+                            ? 'bg-indigo-100 dark:bg-indigo-900/30 ring-2 ring-indigo-500 dark:ring-indigo-400' 
+                            : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        <Icon className={`h-6 w-6 ${
+                          formData.icon === name 
+                            ? 'text-indigo-600 dark:text-indigo-400' 
+                            : 'text-gray-500 dark:text-gray-400'
+                        }`} />
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                          {name}
+                        </span>
+                        </motion.button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Amount Inputs */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Target Amount
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <span className="text-gray-400">₹</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={formData.target}
+                      onChange={(e) => setFormData({ ...formData, target: e.target.value })}
+                      className="pl-12 w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                      placeholder="50,000"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Current Progress
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <span className="text-gray-400">₹</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={formData.current}
+                      onChange={(e) => setFormData({ ...formData, current: e.target.value })}
+                      className="pl-12 w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                      placeholder="10,000"
+                      required
+                    />
+                      </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+                <div className="flex justify-end space-x-4 mt-8">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={fillDemoData}
+                    className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
+                  >
+                    Demo Data
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-6 py-3 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white hover:from-indigo-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all"
+                  >
+                    {isEditing ? 'Save Changes' : 'Create Goal'}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+      )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { useState } from 'react';
+import { TrendingUp, ShieldAlert, BarChart } from 'lucide-react';
+
+interface RiskLevel {
+  value: number;
+  label: string;
+  description: string;
+  color: string;
+  icon: JSX.Element;
+  strategy: string[];
+}
+
+const riskLevels: RiskLevel[] = [
+  {
+    value: 1,
+    label: 'Conservative',
+    description: 'Focus on preserving capital with minimal risk tolerance',
+    color: 'bg-blue-500',
+    icon: <ShieldAlert className="h-6 w-6 text-blue-500" />,
+    strategy: [
+      'Majority in bonds and fixed-income securities',
+      'High-quality, investment-grade investments',
+      'Capital preservation is the primary goal',
+      'Suitable for short-term financial goals'
+    ]
+  },
+  {
+    value: 2,
+    label: 'Moderately Conservative',
+    description: 'Emphasis on stability with some growth potential',
+    color: 'bg-cyan-500',
+    icon: <ShieldAlert className="h-6 w-6 text-cyan-500" />,
+    strategy: [
+      'Mix of bonds and some stocks (60/40)',
+      'Focus on blue-chip stocks',
+      'Regular income generation',
+      'Balance between growth and security'
+    ]
+  },
+  {
+    value: 3,
+    label: 'Moderate',
+    description: 'Balanced approach between growth and security',
+    color: 'bg-green-500',
+    icon: <BarChart className="h-6 w-6 text-green-500" />,
+    strategy: [
+      'Equal mix of stocks and bonds',
+      'Diversified portfolio across sectors',
+      'Moderate growth with reasonable risk',
+      'Medium to long-term investment horizon'
+    ]
+  },
+  {
+    value: 4,
+    label: 'Moderately Aggressive',
+    description: 'Higher risk tolerance for potentially greater returns',
+    color: 'bg-orange-500',
+    icon: <TrendingUp className="h-6 w-6 text-orange-500" />,
+    strategy: [
+      'Higher allocation to stocks (70-80%)',
+      'Some exposure to international markets',
+      'Acceptance of market volatility',
+      'Long-term growth focus'
+    ]
+  },
+  {
+    value: 5,
+    label: 'Aggressive',
+    description: 'Maximum growth potential with highest risk tolerance',
+    color: 'bg-red-500',
+    icon: <TrendingUp className="h-6 w-6 text-red-500" />,
+    strategy: [
+      'Predominantly stocks and growth investments',
+      'Global market exposure',
+      'Comfortable with significant volatility',
+      'Very long-term investment horizon'
+    ]
+  }
+];
+
+export const RiskToleranceTab = () => {
+  const [selectedRisk, setSelectedRisk] = useState<number>(3);
+  const currentRiskLevel = riskLevels.find(level => level.value === selectedRisk)!;
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-8">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Risk Tolerance Profile</h2>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">
+          Adjust your risk tolerance level to match your investment goals and comfort with market volatility.
+        </p>
+      </div>
+
+      {/* Risk Slider */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Conservative</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Aggressive</span>
+        </div>
+        
+        {/* Custom 5-Point Slider */}
+        <div className="relative">
+          {/* Slider Track */}
+          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
+            <div 
+              className="absolute h-2 rounded-full transition-all duration-300"
+              style={{
+                width: `${((selectedRisk - 1) / 4) * 100}%`,
+                background: `linear-gradient(to right, ${riskLevels.slice(0, selectedRisk).map(level => level.color.replace('bg-', '')).join(', ')})`
+              }}
+            />
+          </div>
+
+          {/* Slider Points */}
+          <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between px-1">
+            {riskLevels.map((level) => (
+              <button
+                key={level.value}
+                onClick={() => setSelectedRisk(level.value)}
+                className={`w-4 h-4 rounded-full transition-all duration-300 -ml-2 first:ml-0 last:ml-0 ${
+                  selectedRisk >= level.value 
+                    ? level.color + ' ring-4 ring-opacity-50 ' + level.color.replace('bg-', 'ring-')
+                    : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Selected Risk Level Label */}
+        <div className="text-center">
+          <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-700">
+            {currentRiskLevel.icon}
+            <span className="font-semibold text-gray-900 dark:text-white">
+              {currentRiskLevel.label}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Risk Level Details */}
+      <div className="mt-8 p-6 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+        <div className="space-y-6">
+          {/* Description */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Profile Description
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300">
+              {currentRiskLevel.description}
+            </p>
+          </div>
+
+          {/* Investment Strategy */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+              Recommended Investment Strategy
+            </h3>
+            <div className="grid gap-3">
+              {currentRiskLevel.strategy.map((point, index) => (
+                <div key={index} className="flex items-start space-x-3">
+                  <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${currentRiskLevel.color}`} />
+                  <p className="text-gray-600 dark:text-gray-300">{point}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Button */}
+      <div className="flex justify-end mt-6">
+        <button
+          className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 text-white hover:from-indigo-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all"
+        >
+          Update Risk Profile
+        </button>
+      </div>
+    </div>
+  );
+}; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, LineChart, Line, RadarChart, 
+  PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+} from 'recharts';
+import { 
+  Wallet, TrendingUp, ArrowUpRight, IndianRupeeIcon, 
+  Target, AlertTriangle, Shield, Loader2
+} from 'lucide-react';
+import {
+  portfolioSummary as staticPortfolioSummary,
+  monthlyData,
+  assetAllocation,
+  performanceData as staticPerformanceData,
+  liabilities as liabilitiesData,
+  recentActivity as recentActivityData,
+  investmentGoals,
+  riskMetrics,
+  getPortfolioSummary,
+  getPerformanceData
+} from '../data/dynamicPortfolioData';
+import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+
+interface RiskMetrics {
+  volatility: number;
+  sharpeRatio: number;
+  maxDrawdown: number;
+  beta: number;
+  alpha: number;
+}
+
+interface Liability {
+  type: string;
+  amount: number;
+  monthlyPayment: number;
+  interestRate: number;
+  paid: number;
+  isSecured: boolean;
+  description: string;
+}
+
+interface Activity {
+  type: string;
+  amount: string;
+  date: string;
+  status: string;
+  category?: string;
+  balance?: string;
+}
+
+// Extend RiskMetrics interface to include riskScore
+interface RiskMetricsWithScore extends RiskMetrics {
+  riskScore: number;
+}
+
+const Portfolio = () => {
+  const liabilities = liabilitiesData as Liability[];
+  const recentActivity = recentActivityData as Activity[];
+  
+  // Real-time data state
+  const [portfolioSummary, setPortfolioSummary] = useState(staticPortfolioSummary);
+  const [performanceData, setPerformanceData] = useState(staticPerformanceData);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Function to refresh portfolio data
+  const refreshData = async () => {
+    setIsLoading(true);
+    
+    try {
+      const [newPortfolioSummary, newPerformanceData] = await Promise.all([
+        getPortfolioSummary(),
+        getPerformanceData()
+      ]);
+      
+      setPortfolioSummary(newPortfolioSummary);
+      setPerformanceData(newPerformanceData);
+    } catch (err) {
+      console.error('Error refreshing portfolio data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Auto-refresh every 2 minutes
+  useEffect(() => {
+    refreshData();
+    const interval = setInterval(refreshData, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
+
+
+  // Format currency helper - Updated for INR
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0 // INR typically doesn't use decimals
+    }).format(value);
+  };
+
+  // Animation variants
+  const scaleIn = {
+    initial: { scale: 0.9, opacity: 0 },
+    animate: { scale: 1, opacity: 1 },
+    transition: { duration: 0.5 }
+  };
+
+  // Number animation for portfolio value
+  const CountingNumber = ({ value }: { value: number }) => {
+    const [displayValue, setDisplayValue] = useState(0);
+
+    useEffect(() => {
+      const duration = 1000; // 1 second animation
+      const steps = 60;
+      const stepValue = value / steps;
+      let current = 0;
+
+      const timer = setInterval(() => {
+        current += stepValue;
+        if (current >= value) {
+          setDisplayValue(value);
+          clearInterval(timer);
+        } else {
+          setDisplayValue(current);
+        }
+      }, duration / steps);
+
+      return () => clearInterval(timer);
+    }, [value]);
+
+    return formatCurrency(displayValue);
+  };
+
+  // Add riskScore calculation based on other metrics
+  const riskMetricsWithScore: RiskMetricsWithScore = {
+    volatility: riskMetrics.volatility,
+    sharpeRatio: riskMetrics.sharpeRatio,
+    maxDrawdown: riskMetrics.maxDrawdown,
+    beta: riskMetrics.beta,
+    alpha: riskMetrics.alpha,
+    riskScore: Math.round((riskMetrics.volatility / 20 + riskMetrics.beta / 1.5) * 50)
+  };
+
+  return (
+    <motion.div 
+      className="p-6 space-y-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+
+
+      {/* Main Portfolio Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Total Portfolio Value Card */}
+        <motion.div 
+          className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-sm"
+          {...scaleIn}
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300">My Wealth</h2>
+            <div className="bg-green-100 dark:bg-green-900/20 p-3 rounded-lg">
+              <Wallet className="h-8 w-8 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+          <div className="mb-6">
+            <motion.h1 
+              className="text-5xl font-bold text-gray-900 dark:text-white mb-4"
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.8, type: "spring" }}
+            >
+              {isLoading ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-12 w-12 animate-spin text-indigo-500 mr-4" />
+                </div>
+              ) : (
+                <CountingNumber value={portfolioSummary.totalValue} />
+              )}            </motion.h1>
+            <div className="flex items-center">
+              {portfolioSummary.monthlyChange >= 0 ? (
+                <ArrowUpRight className="h-6 w-6 text-green-500" />
+              ) : (
+                <ArrowUpRight className="h-6 w-6 text-red-500 transform rotate-180" />
+              )}
+              <span className={`text-xl font-semibold ml-1 ${
+                portfolioSummary.monthlyChange >= 0 ? 'text-green-500' : 'text-red-500'
+              }`}>
+                {portfolioSummary.monthlyChange >= 0 ? '+' : ''}{portfolioSummary.monthlyChange}%
+              </span>
+              <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">vs last month</span>
+            </div>
+          </div>
+          
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Monthly Returns</p>
+              <div className="flex items-center mt-1">
+                {portfolioSummary.monthlyReturns >= 0 ? (
+                  <ArrowUpRight className="h-4 w-4 text-green-500" />
+                ) : (
+                  <ArrowUpRight className="h-4 w-4 text-red-500 transform rotate-180" />
+                )}
+                <span className="text-lg font-semibold text-gray-900 dark:text-white ml-1">
+                  {formatCurrency(portfolioSummary.monthlyReturns)}
+                </span>
+              </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Risk Score</p>
+              <div className="flex items-center mt-1">
+                <Shield className="h-4 w-4 text-indigo-500" />
+                <span className="text-lg font-semibold text-gray-900 dark:text-white ml-1">
+                  {portfolioSummary.riskScore}/100
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Portfolio Health */}
+          <div className="border-t dark:border-gray-700 pt-6">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-4">Portfolio Health</h3>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center">
+                <Shield className="h-5 w-5 text-indigo-500 mr-2" />
+                <span className="text-sm text-gray-600 dark:text-gray-300">Diversification Score</span>
+              </div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">92/100</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+              <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: '92%' }}></div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Asset Allocation Chart */}
+        <motion.div 
+          className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm"
+          {...scaleIn}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Asset Allocation</h3>
+            <button className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium">
+              Rebalance
+            </button>
+          </div>
+
+          <div className="flex">
+            {/* Pie Chart - Make it larger and more prominent */}
+            <div className="flex-1 h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={assetAllocation.map(asset => ({
+                      ...asset,
+                      // Update asset names to reflect Indian market terminology
+                      name: asset.name
+                        .replace('US Stocks', 'Indian Stocks')
+                        .replace('International Stocks', 'International Markets')
+                        .replace('US Bonds', 'Indian Bonds')
+                        .replace('Real Estate', 'Real Estate (India)')
+                    }))}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={80}
+                    outerRadius={120}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="#fff"
+                    strokeWidth={2}
+                    animationBegin={0}
+                    animationDuration={1500}
+                  >
+                    {assetAllocation.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.color}
+                        style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.1))' }}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => [`${value}%`, 'Allocation']}
+                    contentStyle={{ borderRadius: '8px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Asset Information - More compact layout */}
+            <div className="w-48 ml-4 flex flex-col justify-center">
+              {assetAllocation.map((asset) => (
+                <div key={asset.name} className="mb-3 last:mb-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div 
+                        className="w-2 h-2 rounded-full mr-2" 
+                        style={{ backgroundColor: asset.color }}
+                      />
+                      <span className="text-xs font-medium text-gray-900 dark:text-white">
+                        {asset.name}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-gray-900 dark:text-white">
+                      {asset.value}%
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 ml-4">
+                    {formatCurrency(asset.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Target vs Actual - More compact */}
+          <div className="border-t dark:border-gray-700 mt-4 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-gray-900 dark:text-white">Target vs Actual</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">2% variance</span>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center">
+                <span className="text-xs text-gray-500 dark:text-gray-400 w-16">Stocks</span>
+                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full mx-2">
+                  <div className="h-1.5 bg-indigo-500 rounded-full" style={{ width: '45%' }}></div>
+                </div>
+                <span className="text-xs font-medium text-gray-900 dark:text-white w-8">45%</span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-xs text-gray-500 dark:text-gray-400 w-16">Bonds</span>
+                <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full mx-2">
+                  <div className="h-1.5 bg-green-500 rounded-full" style={{ width: '25%' }}></div>
+                </div>
+                <span className="text-xs font-medium text-gray-900 dark:text-white w-8">25%</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Secondary Metrics */}
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        variants={{
+          hidden: { opacity: 0 },
+          show: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.2
+            }
+          }
+        }}
+        initial="hidden"
+        animate="show"
+      >
+        {/* Monthly Returns */}
+        <motion.div 
+          className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm"
+          variants={{
+            hidden: { opacity: 0, x: -20 },
+            show: { opacity: 1, x: 0 }
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Monthly Returns</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                {formatCurrency(portfolioSummary.monthlyReturns)}
+              </h3>
+            </div>
+            <div className="bg-blue-100 dark:bg-blue-900/20 p-3 rounded-lg">
+              <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="flex items-center mt-4">
+            <ArrowUpRight className="h-4 w-4 text-green-500" />
+            <span className="text-green-500 text-sm ml-1">+{portfolioSummary.returnsChange}%</span>
+            <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">vs last month</span>
+          </div>
+        </motion.div>
+
+        {/* Risk Score */}
+        <motion.div 
+          className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm"
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            show: { opacity: 1, y: 0 }
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Risk Score</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                {riskMetricsWithScore.riskScore}/100
+              </h3>
+            </div>
+            <div className="bg-yellow-100 dark:bg-yellow-900/20 p-3 rounded-lg">
+              <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-4">
+            <div 
+              className="bg-yellow-500 h-2.5 rounded-full" 
+              style={{ width: `${riskMetricsWithScore.riskScore}%` }}
+            ></div>
+          </div>
+        </motion.div>
+
+        {/* Goal Progress */}
+        <motion.div 
+          className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm"
+          variants={{
+            hidden: { opacity: 0, x: 20 },
+            show: { opacity: 1, x: 0 }
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Goal Progress</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                {portfolioSummary.goalProgress}%
+              </h3>
+            </div>
+            <div className="bg-indigo-100 dark:bg-indigo-900/20 p-3 rounded-lg">
+              <Target className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+            </div>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-4">
+            <div 
+              className="bg-indigo-600 h-2.5 rounded-full" 
+              style={{ width: `${portfolioSummary.goalProgress}%` }}
+            ></div>
+          </div>
+        </motion.div>
+      </motion.div>
+
+      {/* Investment Goals Progress */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Investment Goals</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {investmentGoals.map((goal) => {
+            const progress = (goal.current / goal.target) * 100;
+            return (
+              <div key={goal.name} className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{goal.name}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{goal.timeline}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                  <div
+                    className="bg-indigo-600 h-2.5 rounded-full"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {formatCurrency(goal.current)}
+                  </span>
+                  <span className="text-gray-900 dark:text-white">
+                    {formatCurrency(goal.target)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Charts Grid */}
+      <motion.div 
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.5 }}
+      >
+        {/* Portfolio Performance Chart */}
+        <motion.div 
+          className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm"
+          whileHover={{ scale: 1.02 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Portfolio Performance</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={performanceData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="portfolio" 
+                  name="Your Portfolio"
+                  stroke="#4F46E5" 
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="benchmark" 
+                  name="NIFTY 50" 
+                  stroke="#9CA3AF" 
+                  strokeWidth={2} 
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        {/* Income vs Expenses */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Income vs Expenses</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="value" name="Income" fill="#4F46E5" />
+                <Bar dataKey="expenses" name="Expenses" fill="#EF4444" />
+                <Bar dataKey="savings" name="Savings" fill="#10B981" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Risk Metrics Radar */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Risk Analysis</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Portfolio risk metrics and analysis</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="px-3 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 text-sm font-medium">
+                Risk Score: {riskMetricsWithScore.riskScore}/100
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
+                  { subject: 'Volatility', A: riskMetricsWithScore.volatility, fullMark: 20 },
+                  { subject: 'Sharpe Ratio', A: riskMetricsWithScore.sharpeRatio, fullMark: 3 },
+                  { subject: 'Alpha', A: riskMetricsWithScore.alpha, fullMark: 5 },
+                  { subject: 'Beta', A: riskMetricsWithScore.beta, fullMark: 1.5 },
+                  { subject: 'Max Drawdown', A: Math.abs(riskMetricsWithScore.maxDrawdown), fullMark: 20 }
+                ]}>
+                  <PolarGrid stroke="#e5e7eb" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#6b7280', fontSize: 12 }} />
+                  <PolarRadiusAxis stroke="#e5e7eb" />
+                  <Radar 
+                    name="Risk Metrics" 
+                    dataKey="A" 
+                    stroke="#4F46E5" 
+                    fill="#4F46E5" 
+                    fillOpacity={0.2} 
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-4">
+              {[
+                { label: 'Volatility', value: riskMetricsWithScore.volatility.toFixed(2), desc: 'Price variation over time', color: 'blue' },
+                { label: 'Sharpe Ratio', value: riskMetricsWithScore.sharpeRatio.toFixed(2), desc: 'Risk-adjusted return', color: 'green' },
+                { label: 'Alpha', value: riskMetricsWithScore.alpha.toFixed(2), desc: 'Excess return vs benchmark', color: 'indigo' },
+                { label: 'Beta', value: riskMetricsWithScore.beta.toFixed(2), desc: 'Market sensitivity', color: 'purple' },
+                { label: 'Max Drawdown', value: `${riskMetricsWithScore.maxDrawdown.toFixed(2)}%`, desc: 'Largest peak-to-trough decline', color: 'red' }
+              ].map((metric) => (
+                <div key={metric.label} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-white">{metric.label}</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{metric.desc}</p>
+                    </div>
+                    <span className={`text-${metric.color}-600 dark:text-${metric.color}-400 font-semibold`}>
+                      {metric.value}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Liabilities Overview */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Liabilities Overview</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track and manage your debts</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm">
+                Total Debt: {formatCurrency(liabilities.reduce((acc, l) => acc + l.amount, 0))}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {liabilities.map((liability) => {
+              const progress = (liability.paid / liability.amount) * 100;
+              return (
+                <div key={liability.type} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-white flex items-center">
+                        {liability.type}
+                        {liability.isSecured && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                            Secured
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {liability.description}
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded">
+                      {liability.interestRate}% APR
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 dark:text-gray-400">Progress</span>
+                      <span className="text-gray-900 dark:text-white font-medium">{progress.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between items-center mt-2">
+                      <div className="text-sm">
+                        <span className="text-gray-500 dark:text-gray-400">Monthly: </span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {formatCurrency(liability.monthlyPayment)}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-gray-500 dark:text-gray-400">Remaining: </span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {formatCurrency(liability.amount - liability.paid)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Recent Activity Section */}
+      <motion.div 
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7, duration: 0.5 }}
+      >
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Activity</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track your latest financial movements</p>
+            </div>
+            <button className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium">
+              View All
+            </button>
+          </div>
+          <div className="space-y-4">
+            {recentActivity.map((activity, index) => (
+              <div 
+                key={index} 
+                className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className={`p-2 rounded-lg ${
+                    activity.amount.startsWith('+') 
+                      ? 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400' 
+                      : 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                  }`}>
+                    <IndianRupeeIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{activity.type}</p>
+                      <span className={`px-2 py-0.5 text-xs rounded-full ${
+                        activity.status === 'Completed' 
+                          ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                          : 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400'
+                      }`}>
+                        {activity.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{activity.date}</p>
+                      {activity.category && (
+                        <>
+                          <span className="text-gray-300 dark:text-gray-600">•</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{activity.category}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={`text-sm font-medium ${
+                    activity.amount.startsWith('+') 
+                      ? 'text-green-600 dark:text-green-400' 
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {activity.amount}
+                  </p>
+                  {activity.balance && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Balance: {activity.balance}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+export default Portfolio;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * FinEdge Portfolio Dashboard - MongoDB Connected
+ * 
+ * Main financial dashboard displaying real-time data from MongoDB.
+ * Shows income, expenses, assets, liabilities, and financial metrics.
+ * 
+ * @version 3.0.0 - Full MongoDB Integration
+ */
+
+import { useState, useEffect } from 'react';
+import { useUser } from '@clerk/clerk-react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell
+} from 'recharts';
+import { 
+  Wallet, TrendingUp, ArrowUpRight, IndianRupee, 
+  Target, AlertTriangle, Loader2
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { SERVER_URL } from '../utils/utils';
+
+interface Income {
+  id: string;
+  source: string;
+  amount: number;
+  frequency: 'monthly' | 'yearly' | 'one-time';
+  category: string;
+}
+
+interface Expense {
+  id: string;
+  name: string;
+  amount: number;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time';
+  category: string;
+  isEssential: boolean;
+}
+
+interface Asset {
+  id: string;
+  name: string;
+  value: number;
+  category: string;
+}
+
+interface Liability {
+  id: string;
+  name: string;
+  amount: number;
+  category: string;
+  monthlyPayment?: number;
+}
+
+interface Goal {
+  id: string;
+  name: string;
+  target: string;
+  current: string;
+}
+
+const Portfolio = () => {
+  const { user } = useUser();
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // User data from MongoDB
+  const [income, setIncome] = useState<Income[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [liabilities, setLiabilities] = useState<Liability[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+
+  // Fetch all financial data
+  useEffect(() => {
+    const fetchAllData = async () => {
+      if (!user?.id) return;
+
+      try {
+        setIsLoading(true);
+
+        // Parallel fetch all data
+        const [incomeRes, expensesRes, assetsRes, liabilitiesRes, goalsRes] = await Promise.all([
+          fetch(`${SERVER_URL}/api/user-profile/income?clerkUserId=${user.id}`),
+          fetch(`${SERVER_URL}/api/user-profile/expenses?clerkUserId=${user.id}`),
+          fetch(`${SERVER_URL}/api/user-profile/assets?clerkUserId=${user.id}`),
+          fetch(`${SERVER_URL}/api/user-profile/liabilities?clerkUserId=${user.id}`),
+          fetch(`${SERVER_URL}/api/user-profile/goals?clerkUserId=${user.id}`)
+        ]);
+
+        if (incomeRes.ok) {
+          const data = await incomeRes.json();
+          setIncome(data.income || []);
+        }
+        
+        if (expensesRes.ok) {
+          const data = await expensesRes.json();
+          setExpenses(data.expenses || []);
+        }
+        
+        if (assetsRes.ok) {
+          const data = await assetsRes.json();
+          setAssets(data.assets || []);
+        }
+        
+        if (liabilitiesRes.ok) {
+          const data = await liabilitiesRes.json();
+          setLiabilities(data.liabilities || []);
+        }
+        
+        if (goalsRes.ok) {
+          const data = await goalsRes.json();
+          setGoals(data.goals || []);
+        }
+
+      } catch (error) {
+        console.error('Error fetching portfolio data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, [user]);
+
+  // Calculate financial metrics
+  const calculateMonthlyIncome = () => {
+    return income.reduce((sum, inc) => {
+      if (inc.frequency === 'monthly') return sum + inc.amount;
+      if (inc.frequency === 'yearly') return sum + (inc.amount / 12);
+      return sum;
+    }, 0);
+  };
+
+  const calculateMonthlyExpenses = () => {
+    return expenses.reduce((sum, exp) => {
+      if (exp.frequency === 'monthly') return sum + exp.amount;
+      if (exp.frequency === 'yearly') return sum + (exp.amount / 12);
+      if (exp.frequency === 'weekly') return sum + (exp.amount * 4);
+      if (exp.frequency === 'daily') return sum + (exp.amount * 30);
+      return sum;
+    }, 0);
+  };
+
+  const totalAssets = assets.reduce((sum, asset) => sum + asset.value, 0);
+  const totalLiabilities = liabilities.reduce((sum, liability) => sum + liability.amount, 0);
+  const netWorth = totalAssets - totalLiabilities;
+  const monthlyIncome = calculateMonthlyIncome();
+  const monthlyExpenses = calculateMonthlyExpenses();
+  const monthlySavings = monthlyIncome - monthlyExpenses;
+  const savingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome) * 100 : 0;
+
+  // Prepare chart data - Expense breakdown by category
+  const expensesByCategory = expenses.reduce((acc, exp) => {
+    const monthlyAmount = exp.frequency === 'monthly' ? exp.amount :
+                         exp.frequency === 'yearly' ? exp.amount / 12 :
+                         exp.frequency === 'weekly' ? exp.amount * 4 :
+                         exp.frequency === 'daily' ? exp.amount * 30 : 0;
+    
+    acc[exp.category] = (acc[exp.category] || 0) + monthlyAmount;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const expenseChartData = Object.entries(expensesByCategory).map(([name, value]) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value: Math.round(value)
+  }));
+
+  // Asset allocation chart data
+  const assetsByCategory = assets.reduce((acc, asset) => {
+    acc[asset.category] = (acc[asset.category] || 0) + asset.value;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const assetChartData = Object.entries(assetsByCategory).map(([name, value]) => ({
+    name: name === 'realestate' ? 'Real Estate' :
+          name === 'investments' ? 'Investments' :
+          name === 'vehicles' ? 'Vehicles' :
+          name === 'bank' ? 'Bank' :
+          name === 'cash' ? 'Cash' : 'Other',
+    value: Math.round(value),
+    percentage: totalAssets > 0 ? Math.round((value / totalAssets) * 100) : 0
+  }));
+
+  // Monthly cash flow data (mock historical for now - can be enhanced)
+  const monthlyData = [
+    { name: 'This Month', income: monthlyIncome, expenses: monthlyExpenses, savings: monthlySavings }
+  ];
+
+  const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">Loading your financial dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Portfolio Overview</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Your complete financial snapshot
+          </p>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Net Worth */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-6 text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <Wallet className="w-8 h-8" />
+            <ArrowUpRight className="w-5 h-5" />
+          </div>
+          <p className="text-sm opacity-90 mb-1">Net Worth</p>
+          <p className="text-3xl font-bold">₹{netWorth.toLocaleString('en-IN')}</p>
+          <p className="text-xs mt-2 opacity-75">
+            Assets: ₹{totalAssets.toLocaleString('en-IN')} | Liabilities: ₹{totalLiabilities.toLocaleString('en-IN')}
+          </p>
+        </motion.div>
+
+        {/* Monthly Income */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <TrendingUp className="w-8 h-8 text-green-600 dark:text-green-400" />
+            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
+              {income.length} sources
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Monthly Income</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">
+            ₹{monthlyIncome.toLocaleString('en-IN')}
+          </p>
+        </motion.div>
+
+        {/* Monthly Expenses */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <IndianRupee className="w-8 h-8 text-red-600 dark:text-red-400" />
+            <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-1 rounded">
+              {expenses.length} expenses
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Monthly Expenses</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">
+            ₹{monthlyExpenses.toLocaleString('en-IN')}
+          </p>
+        </motion.div>
+
+        {/* Savings Rate */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className={`rounded-xl p-6 shadow-sm border ${
+            savingsRate >= 0 
+              ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white border-green-200' 
+              : 'bg-gradient-to-br from-red-500 to-rose-600 text-white border-red-200'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <Target className="w-8 h-8" />
+            <span className="text-xs bg-white/20 px-2 py-1 rounded">
+              {savingsRate.toFixed(1)}%
+            </span>
+          </div>
+          <p className="text-sm opacity-90 mb-1">Monthly Savings</p>
+          <p className="text-3xl font-bold">₹{monthlySavings.toLocaleString('en-IN')}</p>
+        </motion.div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Monthly Cash Flow */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+        >
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Monthly Cash Flow</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+              <XAxis dataKey="name" stroke="#6B7280" />
+              <YAxis stroke="#6B7280" />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.5rem' }}
+                labelStyle={{ color: '#F3F4F6' }}
+              />
+              <Bar dataKey="income" fill="#10B981" name="Income" />
+              <Bar dataKey="expenses" fill="#EF4444" name="Expenses" />
+              <Bar dataKey="savings" fill="#4F46E5" name="Savings" />
+            </BarChart>
+          </ResponsiveContainer>
+        </motion.div>
+
+        {/* Expense Breakdown */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+        >
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Expense Breakdown</h3>
+          {expenseChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={expenseChartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, value }) => `${name}: ₹${value.toLocaleString('en-IN')}`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {expenseChartData.map((_,index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(value: number) => `₹${value.toLocaleString('en-IN')}`}
+                  contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.5rem' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
+              No expense data available
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Asset Allocation */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6 }}
+        className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+      >
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Asset Allocation</h3>
+        {assetChartData.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {assetChartData.map((asset, index) => (
+              <div key={asset.name} className="p-4 rounded-lg" style={{ backgroundColor: `${COLORS[index % COLORS.length]}20` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{asset.name}</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  ₹{asset.value.toLocaleString('en-IN')}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  {asset.percentage}% of portfolio
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            No assets tracked yet
+          </div>
+        )}
+      </motion.div>
+
+      {/* Financial Goals Progress */}
+      {goals.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+        >
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Financial Goals</h3>
+          <div className="space-y-4">
+            {goals.slice(0, 3).map((goal) => {
+              const current = parseFloat(goal.current.replace(/[₹,]/g, ''));
+              const target = parseFloat(goal.target.replace(/[₹,]/g, ''));
+              const progress = target > 0 ? (current / target) * 100 : 0;
+              
+              return (
+                <div key={goal.id}>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="font-semibold text-gray-900 dark:text-white">{goal.name}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      ₹{current.toLocaleString('en-IN')} / ₹{target.toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(progress, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    {progress.toFixed(1)}% complete
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Alert if no data */}
+      {income.length === 0 && expenses.length === 0 && assets.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-6"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+            <div>
+              <p className="font-semibold text-yellow-900 dark:text-yellow-100 mb-1">
+                Get Started with Your Financial Data
+              </p>
+              <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                Head over to <strong>My Data</strong> section to add your income sources, expenses, assets, and liabilities. 
+                This will populate your dashboard with personalized insights.
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+};
+
+export default Portfolio;
+
+// End of frontend/src/pages/Portfolio.tsx
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { Link, useLocation } from 'react-router-dom';
+import { BarChart2, BookOpen, TrendingUp, User, LineChart, LayoutDashboard, Database, MessageSquare, Newspaper, Calculator, HelpCircle } from 'lucide-react';
+import { useUser } from '@clerk/clerk-react';
+import { useTour } from '../context/TourContext';
+import { ThemeToggle } from '../components/ThemeToggle';
+
+
+const Sidebar = () => {
+  const location = useLocation();
+  const { user } = useUser();
+  const { openTour } = useTour();
+
+  const menuItems = [
+    { path: '/portfolio', icon: LayoutDashboard, label: 'Portfolio', tourClass: 'tour-portfolio' },
+    { path: '/portfolio/my-data', icon: Database, label: 'My Data', tourClass: 'tour-my-data' },
+    { path: '/portfolio/recommendations', icon: TrendingUp, label: 'Recommendations', tourClass: 'tour-recommendations' },
+    { path: '/portfolio/learn', icon: BookOpen, label: 'Money Matters', tourClass: 'tour-learn' },
+    { path: '/portfolio/financial-path', icon: BarChart2, label: 'Financial Path', tourClass: 'tour-financial-path' },
+    { path: '/portfolio/money-calc', icon: Calculator, label: 'Money Calculator', tourClass: 'tour-money-calc' },
+    { path: '/portfolio/chatbot', icon: MessageSquare, label: 'AI Assistant', tourClass: 'tour-ai-assistant' },
+    { path: '/portfolio/money-pulse', icon: Newspaper, label: 'Money Pulse', tourClass: 'tour-money-pulse' },
+    { path: '/portfolio/stock-analyzer', icon: LineChart, label: 'Stock Analyzer', tourClass: 'tour-stock-analyzer' },
+  ];
+
+  return (
+    <div className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+      <div className="flex flex-col h-full">
+        <div className="p-4">
+          <Link to="/" className="flex items-center tour-logo">
+            <BarChart2 className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+            <span className="ml-2 text-xl font-bold text-gray-900 dark:text-white">FinEdge</span>
+          </Link>
+        </div>
+
+        <nav className="flex-1 p-4">
+          <ul className="space-y-2">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
+              return (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400' 
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    } ${item.tourClass}`}
+                  >
+                    <Icon className="h-5 w-5 mr-3" />
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        {/* User Profile Section */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <Link 
+            to="/portfolio/profile"
+            className="flex items-center space-x-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors p-2 rounded-lg group tour-profile"
+          >
+            {user?.imageUrl ? (
+              <img 
+                src={user.imageUrl} 
+                alt="Profile" 
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-indigo-500 dark:ring-indigo-400"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
+                <User className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                {user?.fullName || 'User Name'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {user?.primaryEmailAddress?.emailAddress || 'email@example.com'}
+              </p>
+            </div>
+          </Link>
+
+          {/* Tutorial Button */}
+          <button
+            onClick={openTour}
+            className="mt-4 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+          >
+            <HelpCircle className="h-4 w-4 mr-2" />
+            Take a Tour
+          </button>
+          
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Sidebar; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { useEffect } from "react";
+import Tour from "reactour";
+import { useUser } from "@clerk/clerk-react";
+import { useTour } from "../context/TourContext";
+
+interface DashboardTourProps {
+  children: React.ReactNode;
+}
+
+const DashboardTour = ({ children }: DashboardTourProps) => {
+  const { user } = useUser();
+  const { isTourOpen, openTour, closeTour } = useTour();
+
+  // Check if we should show the tour on mount
+  useEffect(() => {
+    if (user?.lastSignInAt) {
+      const lastSignInTime = new Date(user.lastSignInAt).getTime();
+      const lastTourTime = localStorage.getItem("lastTourTime");
+      
+      // Show tour if this is a new sign in (lastTourTime is before lastSignInTime)
+      if (!lastTourTime || new Date(lastTourTime).getTime() < lastSignInTime) {
+        openTour();
+        // Update the last tour time
+        localStorage.setItem("lastTourTime", new Date().toISOString());
+      }
+    }
+  }, [user, openTour]);
+
+  const steps = [
+    {
+      selector: ".tour-logo",
+      content: "Welcome to FinEdge! This is your personal financial dashboard.",
+    },
+    {
+      selector: ".tour-portfolio",
+      content: "View your portfolio overview, including total assets, investments, and performance metrics.",
+    },
+    {
+      selector: ".tour-my-data",
+      content: "Manage your financial data, including assets, liabilities, and income streams.",
+    },
+  ];
+
+  return (
+    <>
+      {isTourOpen && (
+        <Tour
+          steps={steps}
+          isOpen={isTourOpen}
+          onRequestClose={closeTour}
+          nextButton={
+            <button style={{ padding: "8px 16px", backgroundColor: "#4F46E5", color: "#FFF" }}>
+              Next →
+            </button>
+          }
+          prevButton={
+            <button style={{ padding: "8px 16px", backgroundColor: "#4F46E5", color: "#FFF" }}>
+              ← Prev
+            </button>
+          }
+          closeButton={
+            <button
+              style={{
+                position: "absolute",
+                top: "8px",
+                right: "8px",
+                background: "transparent",
+                border: "none",
+                fontSize: "18px",
+                cursor: "pointer",
+              }}
+              onClick={closeTour}
+            >
+              ✕
+            </button>
+          }
+          lastStepNextButton={
+            <button
+              onClick={closeTour}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: "#4F46E5",
+                color: "#FFF",
+              }}
+            >
+              Finish Tour
+            </button>
+          }
+          customComponents={{
+            Navigation: ({ currentStep, stepsLength }: { currentStep: number; stepsLength: number }) => (
+              <div style={{ marginTop: "16px", textAlign: "center" }}>
+                {currentStep + 1} of {stepsLength}
+              </div>
+            ),
+          }}
+          styles={{
+            options: {
+              backgroundColor: user?.publicMetadata?.darkMode ? "#1F2937" : "#FFFFFF",
+              textColor: user?.publicMetadata?.darkMode ? "#F3F4F6" : "#1F2937",
+              arrowColor: "#4F46E5",
+            },
+          }}
+        />
+      )}
+      {children}
+    </>
+  );
+};
+
+export default DashboardTour;

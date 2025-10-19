@@ -1,0 +1,1237 @@
+OLD database.py
+
+"""
+FinEdge MongoDB Database Connection Module
+
+Handles connection to MongoDB Atlas and provides database access
+for user profile management, onboarding data, and financial records.
+
+Author: FinEdge Team
+Version: 1.0.0
+"""
+
+import os
+import logging
+from typing import Optional
+from pymongo import MongoClient
+from pymongo.database import Database
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# MongoDB Configuration
+MONGODB_URI = os.environ.get("MONGODB_URI")
+MONGODB_DB_NAME = os.environ.get("MONGODB_DB_NAME", "finedge_db")
+
+# Global database connection
+_db_client: Optional[MongoClient] = None
+_database: Optional[Database] = None
+
+
+def get_database() -> Database:
+    """
+    Get MongoDB database instance with connection pooling.
+    
+    Creates a new connection if none exists, otherwise returns existing connection.
+    Uses connection pooling for efficient resource management.
+    
+    Returns:
+        Database: MongoDB database instance
+        
+    Raises:
+        ValueError: If MONGODB_URI is not set in environment
+        ConnectionFailure: If unable to connect to MongoDB
+    """
+    global _db_client, _database
+    
+    # Return existing connection if available
+    if _database is not None:
+        return _database
+    
+    # Validate MongoDB URI
+    if not MONGODB_URI:
+        raise ValueError(
+            "MONGODB_URI environment variable is not set. "
+            "Please check your .env file and ensure MongoDB Atlas connection string is configured."
+        )
+    
+    try:
+        logger.info("Connecting to MongoDB Atlas...")
+        
+        # Create MongoDB client with connection pooling
+        # serverSelectionTimeoutMS: 5 seconds to wait for server selection
+        # connectTimeoutMS: 10 seconds to establish connection
+        # maxPoolSize: Maximum 50 connections in pool
+        _db_client = MongoClient(
+            MONGODB_URI,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=10000,
+            maxPoolSize=50
+        )
+        
+        # Verify connection by pinging the database
+        _db_client.admin.command('ping')
+        
+        # Get database instance
+        _database = _db_client[MONGODB_DB_NAME]
+        
+        logger.info(f"✅ Successfully connected to MongoDB database: {MONGODB_DB_NAME}")
+        return _database
+        
+    except ServerSelectionTimeoutError as e:
+        logger.error(f"❌ MongoDB connection timeout. Please check:")
+        logger.error("   1. MongoDB Atlas cluster is running")
+        logger.error("   2. Network access is configured (IP whitelist)")
+        logger.error("   3. Connection string is correct")
+        raise ConnectionFailure(f"Failed to connect to MongoDB: {e}")
+        
+    except ConnectionFailure as e:
+        logger.error(f"❌ MongoDB connection failed: {e}")
+        raise
+        
+    except Exception as e:
+        logger.error(f"❌ Unexpected error connecting to MongoDB: {e}")
+        raise
+
+
+def close_database_connection():
+    """
+    Close the MongoDB connection.
+    
+    Should be called when application shuts down to properly
+    release database resources and connections.
+    """
+    global _db_client, _database
+    
+    if _db_client is not None:
+        _db_client.close()
+        _db_client = None
+        _database = None
+        logger.info("MongoDB connection closed")
+
+
+def test_connection() -> bool:
+    """
+    Test MongoDB connection.
+    
+    Useful for health checks and debugging.
+    
+    Returns:
+        bool: True if connection successful, False otherwise
+    """
+    try:
+        db = get_database()
+        # Try to list collections to verify read access
+        collections = db.list_collection_names()
+        logger.info(f"✅ MongoDB connection test successful. Found {len(collections)} collections.")
+        return True
+    except Exception as e:
+        logger.error(f"❌ MongoDB connection test failed: {e}")
+        return False
+
+
+# Collection names (constants for consistency)
+class Collections:
+    """MongoDB collection names used in FinEdge application"""
+    USER_PROFILES = "user_profiles"      # Main user profile and onboarding data
+    INCOME = "income_entries"            # User income records
+    EXPENSES = "expense_entries"         # User expense records
+    ASSETS = "asset_entries"             # User asset records
+    LIABILITIES = "liability_entries"    # User liability records
+    GOALS = "financial_goals"            # User financial goals
+    SESSIONS = "user_sessions"           # User session data (optional)
+
+
+# Initialize database connection on module import (optional - can be lazy loaded)
+try:
+    get_database()
+except Exception as e:
+    logger.warning(f"⚠️ Could not initialize database on startup: {e}")
+    logger.warning("Database will be initialized on first request")
+# End of backend/database.py
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# @app.route('/chat-history', methods=['GET'])
+# def get_chat_history_endpoint():
+#     """Get chat history for a specific session"""
+#     try:
+#         session_id = request.args.get('session_id', 'default')
+        
+#         if get_chat_history:
+#             history = get_chat_history(session_id)
+#             return jsonify({
+#                 'session_id': session_id,
+#                 'history': history,
+#                 'message_count': len(history)
+#             })
+#         else:
+#             return jsonify({'error': 'Session management not available'}), 503
+            
+#     except Exception as e:
+#         logger.error(f"Error getting chat history: {e}")
+#         return jsonify({'error': 'Internal server error'}), 500
+
+# =================== BOTS ===================
+# Add your bot endpoints here
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# @app.route('/active-sessions', methods=['GET'])
+# def get_active_sessions_endpoint():
+#     """Get list of all active chat sessions"""
+#     try:
+#         if get_active_sessions:
+#             sessions = get_active_sessions()
+#             return jsonify({
+#                 'active_sessions': sessions,
+#                 'count': len(sessions)
+#             })
+#         else:
+#             return jsonify({'error': 'Session management not available'}), 503
+            
+#     except Exception as e:
+#         logger.error(f"Error getting active sessions: {e}")
+#         return jsonify({'error': 'Internal server error'}), 500
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# @app.route('/clear-chat-session', methods=['POST'])
+# def clear_chat_session_endpoint():
+#     """Clear a specific chat session"""
+#     try:
+#         session_id = request.form.get('session_id', 'default')
+        
+#         if clear_chat_session:
+#             success = clear_chat_session(session_id)
+#             return jsonify({
+#                 'success': success,
+#                 'message': f'Session {session_id} cleared successfully' if success else f'Session {session_id} not found'
+#             })
+#         else:
+#             return jsonify({'error': 'Session management not available'}), 503
+            
+#     except Exception as e:
+#         logger.error(f"Error clearing chat session: {e}")
+#         return jsonify({'error': 'Internal server error'}), 500
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# @app.route('/agent', methods=['POST'])
+# def agent():
+#     inp = request.form.get('input')
+#     session_id = request.form.get('session_id', 'default')  # Get session ID from request
+    
+#     if not inp:
+#         return jsonify({'error': 'No input provided'}), 400
+    
+#     # Basic input validation
+#     if len(inp) > 1000:  # Prevent extremely long inputs
+#         return jsonify({'error': 'Input too long'}), 400
+    
+#     try:
+#         print(f"Processing input: {inp}")
+        
+#         # Add timeout to prevent hanging - use full path to ensure correct environment
+#         import os
+#         import sys
+#         python_executable = sys.executable  # Use the same Python that's running Flask
+#         agent_path = os.path.join(os.path.dirname(__file__), 'agent.py')
+        
+#         process = subprocess.Popen(
+#             [python_executable, agent_path, inp], 
+#             stdout=subprocess.PIPE, 
+#             stderr=subprocess.PIPE,
+#             universal_newlines=True,
+#             cwd=os.path.dirname(__file__)  # Set working directory to backend folder
+#         )
+        
+#         output = []
+#         # Stream output in real-time
+#         if process.stdout is not None:
+#             while True:
+#                 line = process.stdout.readline()
+#                 if not line and process.poll() is not None:
+#                     break
+#                 if line:
+#                     print(line.strip())  # Print to terminal in real-time
+#                     output.append(line)
+#         else:
+#             logger.error("process.stdout is None")
+        
+#         output_str = ''.join(output)
+#         return_code = process.wait()
+        
+#         # Check if process failed
+#         if return_code != 0:
+#             if process.stderr is not None:
+#                 stderr = process.stderr.read()
+#             else:
+#                 stderr = ""
+#                 logger.error("process.stderr is None")
+#             logger.error(f"Agent script failed with return code {return_code}")
+#             logger.error(f"STDERR: {stderr}")
+#             logger.error(f"STDOUT: {output_str}")
+#             return jsonify({
+#                 'error': 'Agent processing failed', 
+#                 'details': stderr[:500],  # Include error details for debugging
+#                 'return_code': return_code
+#             }), 500
+        
+#         # Debug: Log the full output to see what we received
+#         logger.info(f"Agent output: {output_str[:500]}...")  # Log first 500 chars
+        
+#         # Use regex to extract the response between <Response> tags
+#         final_answer = re.search(r'<Response>(.*?)</Response>', output_str, re.DOTALL)
+#         if final_answer:
+#             final_answer = final_answer.group(1).strip()
+#         else:
+#             logger.warning(f"No <Response> tags found in output. Full output: {output_str}")
+#             # Try to extract the agent's final answer differently
+#             if "Final Answer:" in output_str:
+#                 # Extract everything after "Final Answer:"
+#                 final_answer = output_str.split("Final Answer:")[-1].strip()
+#             else:
+#                 # Fallback to backup AI if available
+#                 if jgaad_chat_with_gemini:
+#                     try:
+#                         final_answer = jgaad_chat_with_gemini(inp, output_str, session_id)
+#                     except Exception as e:
+#                         logger.error(f"Backup AI failed: {e}")
+#                         final_answer = "Error processing request"
+#                 else:
+#                     final_answer = f"Agent ran but no proper response found. Output: {output_str[-200:]}"
+        
+#         return jsonify({'output': final_answer, 'thought': output_str})
+        
+#     except subprocess.TimeoutExpired:
+#         process.kill()
+#         return jsonify({'error': 'Request timed out'}), 500
+#     except Exception as e:
+#         logger.error(f"Error in agent endpoint: {e}")
+#         return jsonify({'error': 'Internal server error'}), 500
+
+# @app.route('/ai-financial-path', methods=['POST'])
+# def ai_financial_path():
+#     # Fix the original bug - check if 'input' exists in form data
+#     if 'input' not in request.form:
+#         return jsonify({'error': 'No input provided'}), 400
+        
+#     input_text = request.form.get('input', '').strip()
+#     if not input_text:
+#         return jsonify({'error': 'Input cannot be empty'}), 400
+        
+#     risk = request.form.get('risk', 'conservative')
+    
+#     # Validate risk level
+#     allowed_risks = ['conservative', 'moderate', 'aggressive']
+#     if risk not in allowed_risks:
+#         return jsonify({'error': f'Invalid risk level. Allowed: {allowed_risks}'}), 400
+    
+#     print(f"Processing financial path for: {input_text}, risk: {risk}")
+    
+#     if not gemini_fin_path:
+#         return jsonify({'error': 'Financial AI service not available'}), 503
+    
+#     try:
+#         response = gemini_fin_path.get_gemini_response(input_text, risk)
+#         return jsonify(response)
+#     except Exception as e:
+#         logger.error(f"Financial path error: {e}")
+#         return jsonify({'error': 'Something went wrong'}), 500
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# try:
+#     from jgaad_ai_agent_backup import jgaad_chat_with_gemini, clear_chat_session, get_active_sessions, get_chat_history
+#     import gemini_fin_path
+# except ImportError:
+#     logging.warning("Could not import AI modules")
+#     jgaad_chat_with_gemini = None
+#     clear_chat_session = None
+#     get_active_sessions = None
+#     get_chat_history = None
+#     gemini_fin_path = None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# NEW - ADDED: Test MongoDB connection on startup
+# @app.before_first_request
+# def initialize_database():
+#     """Initialize and test database connection"""
+#     logger.info("Initializing MongoDB connection...")
+#     if test_connection():
+#         logger.info("✅ MongoDB Atlas connected successfully")
+#     else:
+#         logger.error("❌ MongoDB connection failed - check configuration")
+
+# # NEW - ADDED: Close database connection on shutdown
+# @app.teardown_appcontext
+# def shutdown_database(exception=None):
+#     """Close database connection when app shuts down"""
+#     close_database_connection()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# def init_app():
+#     """Initialize application and database connection"""
+#     with app.app_context():
+#         logger.info("Initializing MongoDB connection...")
+#         try:
+#             if test_connection():
+#                 logger.info("✅ MongoDB Atlas connected successfully")
+#             else:
+#                 logger.warning("⚠️ MongoDB connection test failed - will retry on first request")
+#         except Exception as e:
+#             logger.warning(f"⚠️ MongoDB initialization warning: {e}")
+#             logger.warning("Database will connect on first request")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    //   case 2:
+    //     return (
+    //       <OnboardingLayout
+    //         title="Add Your Income Sources"
+    //         description="Let's start by understanding your income. Add all sources of income you receive."
+    //       >
+    //         {/* IncomeStep will be added in PART 2C */}
+    //         <div className="text-center py-12 text-gray-500">
+    //           Income step coming in PART 2C...
+    //         </div>
+    //       </OnboardingLayout>
+    //     );
+      
+    //   case 3:
+    //     return (
+    //       <OnboardingLayout
+    //         title="Track Your Expenses"
+    //         description="Add your regular expenses to get a complete financial picture."
+    //       >
+    //         {/* ExpensesStep will be added in PART 2C */}
+    //         <div className="text-center py-12 text-gray-500">
+    //           Expenses step coming in PART 2C...
+    //         </div>
+    //       </OnboardingLayout>
+    //     );
+      
+    //   case 4:
+    //     return (
+    //       <OnboardingLayout
+    //         title="List Your Assets"
+    //         description="Add all your assets including properties, investments, and savings."
+    //       >
+    //         {/* AssetsStep will be added in PART 2C */}
+    //         <div className="text-center py-12 text-gray-500">
+    //           Assets step coming in PART 2C...
+    //         </div>
+    //       </OnboardingLayout>
+    //     );
+      
+    //   case 5:
+    //     return (
+    //       <OnboardingLayout
+    //         title="Add Your Liabilities"
+    //         description="Include any loans, debts, or financial obligations you have."
+    //       >
+    //         {/* LiabilitiesStep will be added in PART 2C */}
+    //         <div className="text-center py-12 text-gray-500">
+    //           Liabilities step coming in PART 2C...
+    //         </div>
+    //       </OnboardingLayout>
+    //     );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          case 6:
+        return (
+          <OnboardingLayout
+            title="Review & Submit"
+            description="Review your financial information before submitting."
+            showNext={true}
+            nextLabel="Complete Onboarding"
+          >
+            {/* ReviewStep will be added in PART 2D */}
+            <div className="text-center py-12 text-gray-500">
+              Review step coming in PART 2D...
+            </div>
+          </OnboardingLayout>
+        );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ClerkProvider } from '@clerk/clerk-react';
+import { ThemeProvider } from './context/ThemeContext';
+import { TourProvider } from './context/TourContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import Navbar from './components/Navbar';
+import Home from './pages/Home';
+import Portfolio from './pages/Portfolio';
+import MyData from './pages/MyData/index';
+import Recommendations from './pages/Recommendations';
+import Learn from './pages/Learn';
+import Profile from './pages/Profile';
+import AuthComponent from './components/AuthComponent';
+import DashboardLayout from './components/DashboardLayout';
+import FinancialPathFlow from './components/FinancialPathFlow';
+import Chatbot from './pages/Chatbot';
+import MoneyPulse from './components/MoneyPulse';
+import MoneyCalc from './components/MoneyCalc';
+import StockAnalyzer from './pages/StockAnalyzer';
+import SSOCallback from './components/SSOCallback';
+
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+function App() {
+  return (
+    <ClerkProvider publishableKey={clerkPubKey}>
+      <ThemeProvider>
+        <TourProvider>
+          <Router>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+              <Routes>
+                <Route path="/" element={<><Navbar /><Home /></>} />
+                <Route path="/sign-in" element={<AuthComponent />} />
+                <Route path="/sign-up" element={<AuthComponent />} />
+                <Route path="/sign-up/sso-callback" element={<SSOCallback />} />
+                <Route path="/portfolio" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Portfolio />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/my-data" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <MyData />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/recommendations" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Recommendations />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/learn" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Learn />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/profile" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Profile />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/financial-path" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <FinancialPathFlow />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/chatbot" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <Chatbot />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/money-pulse" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <MoneyPulse />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/money-calc" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <MoneyCalc />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/portfolio/stock-analyzer" element={
+                  <ProtectedRoute>
+                    <DashboardLayout>
+                      <StockAnalyzer />
+                    </DashboardLayout>
+                  </ProtectedRoute>
+                } />
+              </Routes>
+            </div>
+          </Router>
+        </TourProvider>
+      </ThemeProvider>
+    </ClerkProvider>
+  );
+}
+
+export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { useUser } from '@clerk/clerk-react';
+import { Navigate } from 'react-router-dom';
+import FullPageLoader from './FullPageLoader';
+
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+}
+
+const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+  const { isLoaded, isSignedIn } = useUser();
+
+  if (!isLoaded) {
+    return <FullPageLoader />;
+  }
+
+  if (!isSignedIn) {
+    return <Navigate to="/sign-in" />;
+  }
+
+  return <>{children}</>;
+};
+
+export default ProtectedRoute; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ==========================================
+# GOALS ENDPOINTS
+# ==========================================
+
+@app.route('/api/user-profile/goals', methods=['GET'])
+def get_goals():
+    """Get all goals for a user"""
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        user_profile = user_profiles_collection.find_one({'clerkUserId': clerk_user_id})
+        
+        if not user_profile:
+            return jsonify({'goals': []}), 200
+        
+        goals = user_profile.get('goals', [])
+        return jsonify({'goals': goals}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-profile/goals', methods=['POST'])
+def add_goal():
+    """Add a new goal"""
+    try:
+        data = request.json
+        clerk_user_id = data.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        # Extract goal data
+        goal_data = {
+            'id': data.get('id'),
+            'name': data.get('name'),
+            'icon': data.get('icon'),
+            'target': data.get('target'),
+            'current': data.get('current')
+        }
+
+        # Update user profile - add goal to array
+        result = user_profiles_collection.update_one(
+            {'clerkUserId': clerk_user_id},
+            {
+                '$push': {'goals': goal_data},
+                '$set': {'updatedAt': datetime.utcnow()}
+            },
+            upsert=True
+        )
+
+        return jsonify({
+            'message': 'Goal added successfully',
+            'goal': goal_data
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-profile/goals/<goal_id>', methods=['PUT'])
+def update_goal(goal_id):
+    """Update an existing goal"""
+    try:
+        data = request.json
+        clerk_user_id = data.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        # Update the specific goal in the array
+        result = user_profiles_collection.update_one(
+            {
+                'clerkUserId': clerk_user_id,
+                'goals.id': goal_id
+            },
+            {
+                '$set': {
+                    'goals.$.name': data.get('name'),
+                    'goals.$.icon': data.get('icon'),
+                    'goals.$.target': data.get('target'),
+                    'goals.$.current': data.get('current'),
+                    'updatedAt': datetime.utcnow()
+                }
+            }
+        )
+
+        if result.modified_count == 0:
+            return jsonify({'error': 'Goal not found'}), 404
+
+        return jsonify({'message': 'Goal updated successfully'}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/user-profile/goals/<goal_id>', methods=['DELETE'])
+def delete_goal(goal_id):
+    """Delete a goal"""
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        # Remove the goal from the array
+        result = user_profiles_collection.update_one(
+            {'clerkUserId': clerk_user_id},
+            {
+                '$pull': {'goals': {'id': goal_id}},
+                '$set': {'updatedAt': datetime.utcnow()}
+            }
+        )
+
+        if result.modified_count == 0:
+            return jsonify({'error': 'Goal not found'}), 404
+
+        return jsonify({'message': 'Goal deleted successfully'}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+# ==================== END OF NEW ENDPOINTS ====================
+
+# if __name__ == '__main__':
+#     # Initialize database before running
+#     init_app()
+#     app.run(debug=True, host='0.0.0.0', port=5000)
+if __name__ == '__main__':
+    init_app()
+    # UPDATED - Set debug=False for cleaner logs (True for development debugging)
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
+    # use_reloader=False prevents the double-load issue
+
+

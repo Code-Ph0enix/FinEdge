@@ -2,50 +2,33 @@
  * Schema Compatibility Validation for FinEdge Real-time Integration
  * This file validates that our real-time APIs return data in the exact format expected by frontend components
  * 
- * All type definitions have been moved to ../types/index.ts for better organization
+ * All type definitions are imported from ../types/index.ts for better organization
  */
 
 import { 
+  PortfolioSummary,
+  MarketIndicator,
+  StockPriceResponse,
+  PortfolioAnalysisResponse,
+  MarketSummaryResponse,
   SchemaValidation
 } from '../types';
 
-
-
-
-
-
-
-// ====== DYNAMIC DATA SCHEMAS (Real-time Enhanced) ======
-
-
-
-
-
-// ====== API RESPONSE SCHEMAS (Real-time) ======
-
-
-
-
-
-
-
 // ====== VALIDATION FUNCTIONS ======
 
+/**
+ * Validates portfolio summary data structure
+ */
 export const validatePortfolioSummary = (data: any): SchemaValidation => {
   const errors: string[] = [];
   const warnings: string[] = [];
 
   // Required fields
   if (typeof data.totalValue !== 'number') errors.push('totalValue must be a number');
-  if (typeof data.monthlyReturns !== 'number') errors.push('monthlyReturns must be a number');
-  if (typeof data.riskScore !== 'number') errors.push('riskScore must be a number');
-  if (typeof data.goalProgress !== 'number') errors.push('goalProgress must be a number');
-  if (typeof data.monthlyChange !== 'number') errors.push('monthlyChange must be a number');
-  if (typeof data.returnsChange !== 'number') errors.push('returnsChange must be a number');
-
-  // Value range validation
-  if (data.riskScore < 0 || data.riskScore > 100) warnings.push('riskScore should be between 0-100');
-  if (data.goalProgress < 0 || data.goalProgress > 100) warnings.push('goalProgress should be between 0-100');
+  if (typeof data.todayGainLoss !== 'number') errors.push('todayGainLoss must be a number');
+  if (typeof data.todayGainLossPercent !== 'number') errors.push('todayGainLossPercent must be a number');
+  if (typeof data.totalGainLoss !== 'number') errors.push('totalGainLoss must be a number');
+  if (typeof data.totalGainLossPercent !== 'number') errors.push('totalGainLossPercent must be a number');
 
   return {
     isValid: errors.length === 0,
@@ -54,56 +37,43 @@ export const validatePortfolioSummary = (data: any): SchemaValidation => {
   };
 };
 
-export const validateMarketIndicators = (data: any[]): SchemaValidation => {
+/**
+ * Validates market indicator data structure
+ */
+export const validateMarketIndicator = (data: any): SchemaValidation => {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (!Array.isArray(data)) {
-    errors.push('Market indicators must be an array');
-    return { isValid: false, errors, warnings };
-  }
+  if (typeof data.name !== 'string') errors.push('name must be a string');
+  if (typeof data.value !== 'number') errors.push('value must be a number');
+  if (typeof data.change !== 'number') errors.push('change must be a number');
+  if (typeof data.changePercent !== 'number') errors.push('changePercent must be a number');
 
-  data.forEach((indicator, index) => {
-    if (typeof indicator.name !== 'string') errors.push(`indicators[${index}].name must be a string`);
-    if (typeof indicator.value !== 'string') errors.push(`indicators[${index}].value must be a string`);
-    if (!['up', 'down'].includes(indicator.trend)) errors.push(`indicators[${index}].trend must be 'up' or 'down'`);
-    
-    // Optional fields
-    if (indicator.change !== undefined && typeof indicator.change !== 'number') {
-      warnings.push(`indicators[${index}].change should be a number if provided`);
-    }
-    if (indicator.perChange !== undefined && typeof indicator.perChange !== 'number') {
-      warnings.push(`indicators[${index}].perChange should be a number if provided`);
-    }
-  });
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-    warnings
+  return { 
+    isValid: errors.length === 0, 
+    errors, 
+    warnings 
   };
 };
 
-export const validatePerformanceData = (data: any[]): SchemaValidation => {
+/**
+ * Validates stock price response data structure
+ */
+export const validateStockPriceResponse = (data: any): SchemaValidation => {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (!Array.isArray(data)) {
-    errors.push('Performance data must be an array');
-    return { isValid: false, errors, warnings };
+  if (typeof data.symbol !== 'string') errors.push('symbol must be a string');
+  if (data.price !== null && typeof data.price !== 'number') {
+    errors.push('price must be a number or null');
   }
-
-  data.forEach((point, index) => {
-    if (typeof point.month !== 'string') errors.push(`performanceData[${index}].month must be a string`);
-    if (typeof point.portfolio !== 'number') errors.push(`performanceData[${index}].portfolio must be a number`);
-    if (typeof point.benchmark !== 'number') errors.push(`performanceData[${index}].benchmark must be a number`);
-    if (typeof point.risk !== 'number') errors.push(`performanceData[${index}].risk must be a number`);
-    
-    // Value validation
-    if (point.portfolio < 0) warnings.push(`performanceData[${index}].portfolio should be positive`);
-    if (point.benchmark < 0) warnings.push(`performanceData[${index}].benchmark should be positive`);
-    if (point.risk < 0) warnings.push(`performanceData[${index}].risk should be positive`);
-  });
+  
+  if (data.timestamp && typeof data.timestamp !== 'string') {
+    warnings.push('timestamp should be a string');
+  }
+  if (data.error && typeof data.error !== 'string') {
+    warnings.push('error should be a string');
+  }
 
   return {
     isValid: errors.length === 0,
@@ -112,82 +82,108 @@ export const validatePerformanceData = (data: any[]): SchemaValidation => {
   };
 };
 
-// ====== COMPATIBILITY TESTS ======
+/**
+ * Validates portfolio analysis response data structure
+ */
+export const validatePortfolioAnalysisResponse = (data: any): SchemaValidation => {
+  const errors: string[] = [];
+  const warnings: string[] = [];
 
-export const runCompatibilityTests = () => {
-  console.log('🔍 Running FinEdge Schema Compatibility Tests...\n');
+  if (!Array.isArray(data.holdings)) errors.push('holdings must be an array');
+  if (typeof data.summary !== 'object') errors.push('summary must be an object');
 
-  // Test Portfolio Summary
-  const mockPortfolioSummary = {
-    totalValue: 847293,
-    monthlyReturns: 4483,
-    riskScore: 72,
-    goalProgress: 42.3,
-    monthlyChange: 12.5,
-    returnsChange: 8.2
+  // Validate each holding in the array
+  if (Array.isArray(data.holdings)) {
+    data.holdings.forEach((stock: any, index: number) => {
+      if (typeof stock.symbol !== 'string') errors.push(`holdings[${index}].symbol must be a string`);
+      if (typeof stock.boughtPrice !== 'number') errors.push(`holdings[${index}].boughtPrice must be a number`);
+      if (typeof stock.currentPrice !== 'number') errors.push(`holdings[${index}].currentPrice must be a number`);
+      if (typeof stock.quantity !== 'number') errors.push(`holdings[${index}].quantity must be a number`);
+      if (typeof stock.totalValue !== 'number') errors.push(`holdings[${index}].totalValue must be a number`);
+    });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings
   };
-  
-  const portfolioValidation = validatePortfolioSummary(mockPortfolioSummary);
-  console.log('📊 Portfolio Summary:', portfolioValidation.isValid ? '✅ VALID' : '❌ INVALID');
-  if (portfolioValidation.errors.length > 0) console.log('   Errors:', portfolioValidation.errors);
-  if (portfolioValidation.warnings && portfolioValidation.warnings.length > 0) console.log('   Warnings:', portfolioValidation.warnings);
-
-  // Test Market Indicators
-  const mockMarketIndicators = [
-    { name: 'NIFTY 50', value: '22,378.40', trend: 'up', change: 156.75, perChange: 0.70 },
-    { name: 'SENSEX', value: '73,745.35', trend: 'up', change: 425.20, perChange: 0.58 },
-    { name: 'BANK NIFTY', value: '46,875.20', trend: 'down', change: -125.85, perChange: -0.27 }
-  ];
-  
-  const indicatorValidation = validateMarketIndicators(mockMarketIndicators);
-  console.log('📈 Market Indicators:', indicatorValidation.isValid ? '✅ VALID' : '❌ INVALID');
-  if (indicatorValidation.errors.length > 0) console.log('   Errors:', indicatorValidation.errors);
-  if (indicatorValidation.warnings && indicatorValidation.warnings.length > 0) console.log('   Warnings:', indicatorValidation.warnings);
-
-  // Test Performance Data
-  const mockPerformanceData = [
-    { month: 'Jan', portfolio: 1000000, benchmark: 980000, risk: 950000 },
-    { month: 'Feb', portfolio: 1050000, benchmark: 1000000, risk: 980000 },
-    { month: 'Mar', portfolio: 1150000, benchmark: 1100000, risk: 1050000 }
-  ];
-  
-  const performanceValidation = validatePerformanceData(mockPerformanceData);
-  console.log('📊 Performance Data:', performanceValidation.isValid ? '✅ VALID' : '❌ INVALID');
-  if (performanceValidation.errors.length > 0) console.log('   Errors:', performanceValidation.errors);
-  if (performanceValidation.warnings && performanceValidation.warnings.length > 0) console.log('   Warnings:', performanceValidation.warnings);
-
-  console.log('\n🎉 Schema Compatibility: ALL TESTS PASSED');
-  console.log('✨ Frontend components will work seamlessly with real-time data!');
 };
 
-// ====== MIGRATION HELPERS ======
+/**
+ * Validates market summary response data structure
+ */
+export const validateMarketSummaryResponse = (data: any): SchemaValidation => {
+  const errors: string[] = [];
+  const warnings: string[] = [];
 
-export const migrateLegacyData = (legacyData: any) => {
-  // Helper function to migrate any legacy data formats
-  // Currently not needed as schemas are already compatible
-  return legacyData;
+  if (!data.indices) {
+    errors.push('indices field is required');
+    return { isValid: false, errors, warnings };
+  }
+
+  // Check if indices is array or object
+  if (Array.isArray(data.indices)) {
+    data.indices.forEach((index: any, i: number) => {
+      if (typeof index.value !== 'number') errors.push(`indices[${i}].value must be a number`);
+      if (typeof index.change !== 'number') errors.push(`indices[${i}].change must be a number`);
+      if (typeof index.perChange !== 'number') errors.push(`indices[${i}].perChange must be a number`);
+      if (typeof index.symbol !== 'string') errors.push(`indices[${i}].symbol must be a string`);
+    });
+  } else {
+    // Handle object format
+    Object.keys(data.indices).forEach(key => {
+      const index = data.indices[key];
+      if (typeof index.value !== 'number') errors.push(`indices.${key}.value must be a number`);
+      if (typeof index.change !== 'number') errors.push(`indices.${key}.change must be a number`);
+      if (typeof index.perChange !== 'number') errors.push(`indices.${key}.perChange must be a number`);
+    });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings
+  };
 };
 
-export const transformApiResponse = (apiResponse: any, expectedSchema: string) => {
-  // Helper function to transform API responses to match frontend schemas
-  // Currently not needed as our APIs already return correct formats
-  switch (expectedSchema) {
+// ====== COMPATIBILITY CHECKS ======
+
+/**
+ * Validates if the real-time data matches expected frontend component schema
+ */
+export const validateRealTimeCompatibility = (dataType: string, data: any): SchemaValidation => {
+  switch (dataType) {
     case 'portfolioSummary':
-      return apiResponse;
-    case 'marketIndicators':
-      return apiResponse;
-    case 'performanceData':
-      return apiResponse;
+      return validatePortfolioSummary(data);
+    case 'marketIndicator':
+      return validateMarketIndicator(data);
+    case 'stockPrice':
+      return validateStockPriceResponse(data);
+    case 'portfolioAnalysis':
+      return validatePortfolioAnalysisResponse(data);
+    case 'marketSummary':
+      return validateMarketSummaryResponse(data);
     default:
-      return apiResponse;
+      return {
+        isValid: false,
+        errors: [`Unknown data type: ${dataType}`],
+        warnings: []
+      };
   }
 };
 
-// Run tests when module is imported
-if (typeof window !== 'undefined') {
-  // Browser environment
-  console.log('FinEdge Schema Validation loaded - all schemas compatible! ✅');
-} else {
-  // Node.js environment  
-  runCompatibilityTests();
-}
+/**
+ * Logs validation results for debugging
+ */
+export const logValidationResults = (dataType: string, validation: SchemaValidation): void => {
+  if (!validation.isValid) {
+    console.error(`❌ ${dataType} validation failed:`, validation.errors);
+  }
+  if (validation.warnings && validation.warnings.length > 0) {
+    console.warn(`⚠️ ${dataType} validation warnings:`, validation.warnings);
+  }
+  if (validation.isValid && (!validation.warnings || validation.warnings.length === 0)) {
+    console.log(`✅ ${dataType} validation passed`);
+  }
+};
