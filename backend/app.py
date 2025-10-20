@@ -91,10 +91,10 @@ def init_app():
             logger.warning("⚠️ MongoDB will connect on first request")
 
 # NEW - UPDATED: Cleanup on app teardown
-@app.teardown_appcontext
-def shutdown_database(exception=None):
-    """Close database connection when app shuts down"""
-    close_database_connection()
+# @app.teardown_appcontext
+# def shutdown_database(exception=None):
+#     """Close database connection when app shuts down"""
+#     close_database_connection()
 
 
 @app.route('/', methods=['GET'])
@@ -223,9 +223,44 @@ def agent():
         logger.error(f"[{session_id}] Error in agent endpoint: {e}")
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
+# @app.route('/ai-financial-path', methods=['POST'])
+# def ai_financial_path():
+#     # ... (your initial validation code is good) ...
+#     if 'input' not in request.form:
+#         return jsonify({'error': 'No input provided'}), 400
+    
+#     input_text = request.form.get('input', '').strip()
+#     if not input_text:
+#         return jsonify({'error': 'Input cannot be empty'}), 400
+        
+#     risk = request.form.get('risk', 'conservative')
+
+#     print(f"Processing financial path for: {input_text}, risk: {risk}")
+    
+#     if not gemini_fin_path:
+#         return jsonify({'error': 'Financial AI service not available'}), 503
+    
+#     try:
+#         # 1. Get the JSON STRING from the Gemini service
+#         response_string = gemini_fin_path.get_gemini_response(input_text, risk)
+        
+#         # 2. ✅ CRITICAL STEP: Parse the JSON string into a Python dictionary
+#         response_dict = json.loads(response_string)
+        
+#         # 3. Now, jsonify the DICTIONARY to create a proper JSON response
+#         return jsonify(response_dict)
+
+#     except json.JSONDecodeError:
+#         # This catches errors if Gemini returns something that isn't valid JSON
+#         logger.error(f"Failed to decode JSON from Gemini. Raw response: {response_string}")
+#         return jsonify({'error': 'The AI response was not in a valid format.'}), 500
+#     except Exception as e:
+#         logger.error(f"Financial path error: {e}")
+#         return jsonify({'error': 'Something went wrong on the server.'}), 500
+
+
 @app.route('/ai-financial-path', methods=['POST'])
 def ai_financial_path():
-    # ... (your initial validation code is good) ...
     if 'input' not in request.form:
         return jsonify({'error': 'No input provided'}), 400
     
@@ -234,29 +269,35 @@ def ai_financial_path():
         return jsonify({'error': 'Input cannot be empty'}), 400
         
     risk = request.form.get('risk', 'conservative')
-
+    
     print(f"Processing financial path for: {input_text}, risk: {risk}")
     
     if not gemini_fin_path:
         return jsonify({'error': 'Financial AI service not available'}), 503
     
     try:
-        # 1. Get the JSON STRING from the Gemini service
-        response_string = gemini_fin_path.get_gemini_response(input_text, risk)
+        # 🔥 GET USER DATA FROM REQUEST
+        user_data_str = request.form.get('userData', '{}')
+        user_data = json.loads(user_data_str) if user_data_str else {}
         
-        # 2. ✅ CRITICAL STEP: Parse the JSON string into a Python dictionary
+        logger.info(f"📊 User data received: {user_data}")
+        
+        # 1. Get the JSON STRING from the Gemini service WITH USER DATA
+        response_string = gemini_fin_path.get_gemini_response(input_text, risk, user_data)
+        
+        # 2. Parse the JSON string into a Python dictionary
         response_dict = json.loads(response_string)
         
-        # 3. Now, jsonify the DICTIONARY to create a proper JSON response
+        # 3. Return proper JSON response
         return jsonify(response_dict)
 
     except json.JSONDecodeError:
-        # This catches errors if Gemini returns something that isn't valid JSON
         logger.error(f"Failed to decode JSON from Gemini. Raw response: {response_string}")
         return jsonify({'error': 'The AI response was not in a valid format.'}), 500
     except Exception as e:
         logger.error(f"Financial path error: {e}")
         return jsonify({'error': 'Something went wrong on the server.'}), 500
+
 
 # =================== STATIC APIS ===================
 @app.route('/auto-bank-data', methods=['GET'])  # Fixed: was 'get', now 'GET'
@@ -713,6 +754,54 @@ def get_onboarding_status():
     except Exception as e:
         logger.error(f"Error checking onboarding status: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+
+# @app.route('/api/onboarding/complete', methods=['POST'])
+# def complete_onboarding_endpoint():
+#     """
+#     ✅ NEW ENDPOINT - Complete onboarding and save profile
+    
+#     This endpoint is called when user finishes onboarding.
+#     Saves user profile with risk tolerance and marks onboarding as complete.
+#     """
+#     try:
+#         data = request.json
+#         clerk_user_id = data.get('clerkUserId')
+        
+#         if not clerk_user_id:
+#             return jsonify({'error': 'clerkUserId is required'}), 400
+        
+#         db = get_database()
+#         profiles_collection = db[Collections.USER_PROFILES]
+        
+#         # Prepare profile data
+#         profile_data = {
+#             'clerkUserId': clerk_user_id,
+#             'riskTolerance': data.get('riskTolerance', 'moderate'),
+#             'onboardingCompleted': data.get('onboardingCompleted', True),
+#             'onboardingStep': data.get('onboardingStep', 6),
+#             'updatedAt': datetime.utcnow(),
+#             'createdAt': datetime.utcnow()
+#         }
+        
+#         # Upsert (update if exists, insert if not)
+#         result = profiles_collection.update_one(
+#             {'clerkUserId': clerk_user_id},
+#             {'$set': profile_data},
+#             upsert=True
+#         )
+        
+#         logger.info(f"✅ Onboarding completed for user: {clerk_user_id}")
+        
+#         return jsonify({
+#             'success': True,
+#             'message': 'Onboarding completed successfully',
+#             'profile': serialize_document(profile_data)
+#         }), 200
+        
+#     except Exception as e:
+#         logger.error(f"❌ Error completing onboarding: {e}")
+#         return jsonify({'error': 'Failed to complete onboarding'}), 500
 
 
 @app.route('/api/onboarding/complete', methods=['POST'])
