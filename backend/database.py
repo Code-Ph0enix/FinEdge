@@ -195,6 +195,9 @@ class Collections:
     # ✅ NEW - Financial Path history collections
     FINANCIAL_PATH_HISTORY = "financial_path_history"  
 
+    INVESTMENT_RECOMMENDATIONS = "investment_recommendations"  # ✅ ADD THIS
+
+
 
 
 # UPDATED - Removed noisy startup initialization

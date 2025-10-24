@@ -9,6 +9,11 @@ import re
 import subprocess
 import sys
 from datetime import datetime
+from flask import Flask, request, jsonify
+from datetime import datetime, timedelta  # ✅ ADD timedelta
+import logging
+import requests  # ✅ ADD requests
+
 # NEW - ADDED: MongoDB imports for user data management
 from database import get_database, close_database_connection, Collections, test_connection
 from models import (
@@ -17,6 +22,9 @@ from models import (
     calculate_net_worth, calculate_monthly_cash_flow
 )
 from bson import ObjectId
+# ADD this import near other imports
+from gemini_recommendations import get_personalized_recommendations
+
 
 # ✅ ADD THESE TWO LINES TO SILENCE YFINANCE
 yf_logger = logging.getLogger('yfinance')
@@ -1624,6 +1632,340 @@ def manage_financial_path_history():
             'error': 'Failed to manage financial path history',
             'details': str(e)
         }), 500
+    
+
+
+
+
+
+
+
+
+
+
+# ===========================================================================================================
+#                         INVESTMENT RECOMMENDATIONS API
+# ===========================================================================================================
+
+@app.route('/api/recommendations/generate', methods=['POST'])
+def generate_investment_recommendations():
+    """
+    Generate personalized investment recommendations using Gemini AI
+    
+    POST Body:
+    {
+        "clerkUserId": "user_123",
+        "forceRefresh": false  // Optional: force regeneration
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "recommendations": { stocks, mutualFunds, bonds, etc. },
+        "cacheInfo": { cached, generatedAt, expiresAt }
+    }
+    """
+    try:
+        data = request.json
+        clerk_user_id = data.get('clerkUserId')
+        force_refresh = data.get('forceRefresh', False)
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        logger.info(f"📊 Generating recommendations for user: {clerk_user_id}")
+        
+        db = get_database()
+        recommendations_collection = db[Collections.INVESTMENT_RECOMMENDATIONS]
+        
+        # ========== CHECK CACHE FIRST ==========
+        if not force_refresh:
+            cached = recommendations_collection.find_one(
+                {'clerkUserId': clerk_user_id},
+                sort=[('createdAt', -1)]
+            )
+            
+            if cached:
+                # Check if cache is still valid (24 hours)
+                created_at = cached.get('createdAt')
+                if isinstance(created_at, datetime):
+                    age = datetime.utcnow() - created_at
+                    if age < timedelta(hours=24):
+                        logger.info(f"✅ Returning cached recommendations (age: {age.seconds//3600}h)")
+                        return jsonify({
+                            'success': True,
+                            'recommendations': cached.get('recommendations'),
+                            'cacheInfo': {
+                                'cached': True,
+                                'generatedAt': str(created_at),
+                                'expiresAt': str(created_at + timedelta(hours=24)),
+                                'ageHours': age.seconds // 3600
+                            }
+                        }), 200
+        
+        # ========== FETCH USER PROFILE ==========
+        logger.info(f"📥 Fetching user profile for: {clerk_user_id}")
+        
+        try:
+            # Fetch all user data
+            profile_res = requests.get(f"{request.host_url}api/onboarding/status?clerkUserId={clerk_user_id}")
+            income_res = requests.get(f"{request.host_url}api/user-profile/income?clerkUserId={clerk_user_id}")
+            expenses_res = requests.get(f"{request.host_url}api/user-profile/expenses?clerkUserId={clerk_user_id}")
+            assets_res = requests.get(f"{request.host_url}api/user-profile/assets?clerkUserId={clerk_user_id}")
+            liabilities_res = requests.get(f"{request.host_url}api/user-profile/liabilities?clerkUserId={clerk_user_id}")
+            goals_res = requests.get(f"{request.host_url}api/user-profile/goals?clerkUserId={clerk_user_id}")
+            
+            # Parse responses
+            profile = profile_res.json() if profile_res.status_code == 200 else {}
+            income = income_res.json() if income_res.status_code == 200 else {}
+            expenses = expenses_res.json() if expenses_res.status_code == 200 else {}
+            assets = assets_res.json() if assets_res.status_code == 200 else {}
+            liabilities = liabilities_res.json() if liabilities_res.status_code == 200 else {}
+            goals = goals_res.json() if goals_res.status_code == 200 else {}
+            
+            # Calculate financial metrics
+            monthly_income = income.get('income', [])
+            monthly_income_total = sum(
+                inc['amount'] if inc['frequency'] == 'monthly' else inc['amount'] / 12
+                for inc in monthly_income
+            )
+            
+            monthly_expenses = expenses.get('expenses', [])
+            monthly_expenses_total = sum(
+                exp['amount'] if exp['frequency'] == 'monthly' 
+                else exp['amount'] / 12 if exp['frequency'] == 'yearly'
+                else exp['amount'] * 4 if exp['frequency'] == 'weekly'
+                else exp['amount'] * 30 if exp['frequency'] == 'daily'
+                else exp['amount']
+                for exp in monthly_expenses
+            )
+            
+            total_assets = sum(asset['value'] for asset in assets.get('assets', []))
+            total_liabilities = sum(liability['amount'] for liability in liabilities.get('liabilities', []))
+            
+            # Build user profile dict
+            user_profile = {
+                'clerkUserId': clerk_user_id,
+                'riskTolerance': profile.get('profile', {}).get('riskTolerance', 'moderate'),
+                'monthlyIncome': monthly_income_total,
+                'monthlyExpenses': monthly_expenses_total,
+                'monthlySavings': monthly_income_total - monthly_expenses_total,
+                'totalAssets': total_assets,
+                'totalLiabilities': total_liabilities,
+                'netWorth': total_assets - total_liabilities,
+                'financialGoals': [g['name'] for g in goals.get('goals', [])],
+                'age': profile.get('profile', {}).get('age', 30)
+            }
+            
+            logger.info(f"✅ User profile: Savings=₹{user_profile['monthlySavings']}, Risk={user_profile['riskTolerance']}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error fetching user profile: {e}")
+            return jsonify({'error': 'Failed to fetch user profile', 'details': str(e)}), 500
+        
+        # ========== GET MARKET DATA ==========
+        logger.info(f"📈 Fetching market data...")
+        
+        try:
+            # Fetch market indices from your existing endpoint
+            market_res = requests.get(f"{request.host_url}api/market/comprehensive-summary")
+            market_raw = market_res.json() if market_res.status_code == 200 else {}
+            
+            # Extract relevant market data
+            indices = market_raw.get('indices', {})
+            
+            # Calculate market trend
+            nifty_change = indices.get('NIFTY 50', {}).get('perChange', 0)
+            market_trend = 'Bullish' if nifty_change > 1 else 'Bearish' if nifty_change < -1 else 'Neutral'
+            
+            # Get top performing sectors
+            top_sectors = []
+            for name, data in indices.items():
+                if 'NIFTY' in name and data.get('perChange', 0) > 2:
+                    sector = name.replace('NIFTY ', '')
+                    top_sectors.append(sector)
+            
+            market_data = {
+                'niftyTrend': market_trend,
+                'niftyChange': nifty_change,
+                'topSectors': top_sectors[:3],  # Top 3 sectors
+                'fiiFlow': 2850,  # You can make this dynamic if you have FII data API
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+            logger.info(f"✅ Market data: Trend={market_trend}, Nifty={nifty_change}%")
+            
+        except Exception as e:
+            logger.error(f"❌ Error fetching market data: {e}")
+            # Use default market data
+            market_data = {
+                'niftyTrend': 'Neutral',
+                'niftyChange': 0,
+                'topSectors': ['IT', 'Banking', 'Pharma'],
+                'fiiFlow': 0,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+        
+        # ========== GENERATE AI RECOMMENDATIONS ==========
+        logger.info(f"🤖 Calling Gemini AI for recommendations...")
+        
+        try:
+            recommendations = get_personalized_recommendations(
+                user_profile=user_profile,
+                market_data=market_data,
+                portfolio_data=None  # You can add portfolio analysis later
+            )
+            
+            logger.info(f"✅ AI recommendations generated successfully")
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating AI recommendations: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': 'Failed to generate recommendations', 'details': str(e)}), 500
+        
+        # ========== SAVE TO MONGODB CACHE ==========
+        logger.info(f"💾 Saving recommendations to MongoDB...")
+        
+        try:
+            cache_doc = {
+                'clerkUserId': clerk_user_id,
+                'recommendations': recommendations,
+                'userProfile': user_profile,
+                'marketData': market_data,
+                'createdAt': datetime.utcnow(),
+                'expiresAt': datetime.utcnow() + timedelta(hours=24)
+            }
+            
+            # Keep only last 5 recommendations per user
+            existing_count = recommendations_collection.count_documents({'clerkUserId': clerk_user_id})
+            if existing_count >= 5:
+                oldest = recommendations_collection.find_one(
+                    {'clerkUserId': clerk_user_id},
+                    sort=[('createdAt', 1)]
+                )
+                if oldest:
+                    recommendations_collection.delete_one({'_id': oldest['_id']})
+            
+            recommendations_collection.insert_one(cache_doc)
+            logger.info(f"✅ Recommendations cached successfully")
+            
+        except Exception as e:
+            logger.error(f"⚠️ Failed to cache recommendations: {e}")
+            # Continue anyway - caching is optional
+        
+        # ========== RETURN RESPONSE ==========
+        return jsonify({
+            'success': True,
+            'recommendations': recommendations,
+            'cacheInfo': {
+                'cached': False,
+                'generatedAt': datetime.utcnow().isoformat(),
+                'expiresAt': (datetime.utcnow() + timedelta(hours=24)).isoformat(),
+                'ageHours': 0
+            },
+            'userProfile': {
+                'riskTolerance': user_profile['riskTolerance'],
+                'monthlySavings': user_profile['monthlySavings']
+            },
+            'marketConditions': market_data
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error in recommendations endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+
+@app.route('/api/recommendations/get', methods=['GET'])
+def get_cached_recommendations():
+    """
+    Get cached recommendations without regenerating
+    
+    Query Params:
+        clerkUserId: User's Clerk ID
+    
+    Returns cached recommendations or null if none exist
+    """
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        logger.info(f"📥 Fetching cached recommendations for: {clerk_user_id}")
+        
+        db = get_database()
+        recommendations_collection = db[Collections.INVESTMENT_RECOMMENDATIONS]
+        
+        cached = recommendations_collection.find_one(
+            {'clerkUserId': clerk_user_id},
+            sort=[('createdAt', -1)]
+        )
+        
+        if cached:
+            created_at = cached.get('createdAt')
+            age = datetime.utcnow() - created_at if isinstance(created_at, datetime) else timedelta(0)
+            
+            logger.info(f"✅ Found cached recommendations (age: {age.seconds//3600}h)")
+            
+            return jsonify({
+                'success': True,
+                'recommendations': cached.get('recommendations'),
+                'cacheInfo': {
+                    'cached': True,
+                    'generatedAt': str(created_at),
+                    'expiresAt': str(created_at + timedelta(hours=24)) if isinstance(created_at, datetime) else '',
+                    'ageHours': age.seconds // 3600
+                }
+            }), 200
+        else:
+            logger.info(f"ℹ️ No cached recommendations found")
+            return jsonify({
+                'success': True,
+                'recommendations': None,
+                'cacheInfo': {'cached': False}
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"❌ Error fetching cached recommendations: {e}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+
+@app.route('/api/recommendations/clear', methods=['DELETE'])
+def clear_recommendations_cache():
+    """
+    Clear all cached recommendations for a user
+    
+    Query Params:
+        clerkUserId: User's Clerk ID
+    """
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+        
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        logger.info(f"🗑️ Clearing recommendations cache for: {clerk_user_id}")
+        
+        db = get_database()
+        recommendations_collection = db[Collections.INVESTMENT_RECOMMENDATIONS]
+        
+        result = recommendations_collection.delete_many({'clerkUserId': clerk_user_id})
+        
+        logger.info(f"✅ Deleted {result.deleted_count} cached recommendation(s)")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Cleared {result.deleted_count} cached recommendation(s)',
+            'deletedCount': result.deleted_count
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error clearing recommendations cache: {e}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
 
     
 
