@@ -1,5 +1,5 @@
-// LATEST VERSION OF THE CODE
-import { useCallback, useState, useRef } from 'react';
+// LATEST VERSION WITH MONGODB PERSISTENCE
+import { useCallback, useState, useRef, useEffect } from 'react'; // ✅ ADDED useEffect
 import axios from 'axios';
 import {
   ReactFlow,
@@ -17,6 +17,10 @@ import { Mic, MicOff, Send, TrendingUp, Shield, IndianRupeeIcon, Clock } from 'l
 import { useTheme } from '../context/ThemeContext';
 import { SERVER_URL } from '../utils/utils';
 import { useUser } from '@clerk/clerk-react';
+import { 
+  fetchFinancialPathHistory, 
+  saveFinancialPathHistory 
+} from '../utils/chatApi';
 
 // Define custom types for Speech Recognition
 declare global {
@@ -113,13 +117,14 @@ const sampleInputs: SampleInput[] = [
 
 const FinancialPathFlow = () => {
   const { theme } = useTheme();
-  const { user } = useUser();
+  const { user, isLoaded } = useUser(); // ✅ UPDATED - Added isLoaded
   const [activeTab, setActiveTab] = useState('conservative');
   const [userInput, setUserInput] = useState('');
-  const [fetchedUserData, setFetchedUserData] = useState<any>({}); // ✅ STORE FETCHED DATA HERE
+  const [fetchedUserData, setFetchedUserData] = useState<any>({});
   const [isListening, setIsListening] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false); // ✅ NEW
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [serverData, setServerData] = useState<ServerResponse | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -131,6 +136,61 @@ const FinancialPathFlow = () => {
     (params: Connection | Edge) => setEdges((eds: any) => addEdge(params, eds)),
     [setEdges]
   );
+
+  // ============================================================================
+  // ✅ NEW - LOAD FINANCIAL PATH HISTORY FROM MONGODB ON MOUNT
+  // ============================================================================
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (!isLoaded || !user?.id) {
+        return;
+      }
+
+      setIsLoadingHistory(true);
+      console.log('📥 Loading Financial Path history from MongoDB...');
+
+      try {
+        const history = await fetchFinancialPathHistory(user.id);
+
+        if (history && history.serverData) {
+          // Restore the previous result
+          setServerData(history.serverData);
+          setFetchedUserData(history.fetchedUserData || {});
+          
+          // Restore nodes and edges
+          if (history.serverData.nodes && history.serverData.edges) {
+            setNodes(history.serverData.nodes.map((node: any) => ({
+              ...node,
+              className: `${node.style.background} border-2 ${node.style.border} rounded-lg p-4 text-center font-medium`,
+              data: {
+                ...node.data,
+                label: (node.data as { label: string }).label.replace('₹', '₹')
+              }
+            })));
+            
+            setEdges(history.serverData.edges.map((edge: any) => ({
+              ...edge,
+              className: edge.style.stroke,
+              source: edge.source,
+              target: edge.target,
+              label: edge.label
+            })));
+          }
+          
+          setShowResults(true);
+          console.log('✅ Restored Financial Path from MongoDB');
+        } else {
+          console.log('ℹ️ No previous Financial Path history found');
+        }
+      } catch (error) {
+        console.error('❌ Error loading Financial Path history:', error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+  }, [isLoaded, user?.id, setNodes, setEdges]); // Dependencies
 
   const handleSpeechToText = () => {
     if (!isListening) {
@@ -242,7 +302,6 @@ const FinancialPathFlow = () => {
             ) || []
           };
 
-          // ✅ SAVE TO STATE SO IT'S ACCESSIBLE IN JSX
           setFetchedUserData(userData);
           console.log('✅ Fetched user data:', userData);
         } catch (error) {
@@ -284,6 +343,30 @@ const FinancialPathFlow = () => {
       })));
       
       setShowResults(true);
+
+      // ============================================================================
+      // ✅ NEW - SAVE TO MONGODB
+      // ============================================================================
+      if (user?.id) {
+        const historyData = {
+          riskProfile: activeTab,
+          userQuery: userInput,
+          serverData: data,
+          fetchedUserData: userData
+        };
+
+        saveFinancialPathHistory(user.id, historyData)
+          .then(success => {
+            if (success) {
+              console.log('✅ Financial Path result saved to MongoDB');
+            } else {
+              console.warn('⚠️ Failed to save Financial Path result');
+            }
+          })
+          .catch(error => {
+            console.error('❌ Error saving Financial Path:', error);
+          });
+      }
 
       setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -338,6 +421,20 @@ const FinancialPathFlow = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+      {/* ============================================================================ */}
+      {/* ✅ NEW - LOADING HISTORY INDICATOR */}
+      {/* ============================================================================ */}
+      {isLoadingHistory && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4">
+          <div className="flex items-center space-x-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-600 dark:border-indigo-400 border-t-transparent"></div>
+            <p className="text-indigo-700 dark:text-indigo-300 font-medium">
+              Loading your previous financial pathway...
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Investment Pathway Generator</h1>
         <p className="text-gray-600 dark:text-gray-300">Create your personalized investment strategy based on your goals and risk tolerance</p>

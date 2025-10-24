@@ -310,11 +310,19 @@ export interface SpeechModalProps {
 /**
  * Chat header component props
  */
+// export interface ChatHeaderProps {
+//   title?: string;
+//   subtitle?: string;
+//   onClearChat?: () => void;
+// }
+
 export interface ChatHeaderProps {
   title?: string;
   subtitle?: string;
   onClearChat?: () => void;
+  syncStatus?: 'syncing' | 'synced' | 'error'; // ✅ ADDED
 }
+
 
 /**
  * Chat input component props

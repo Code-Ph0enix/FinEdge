@@ -1,5 +1,19 @@
+/**
+ * FinEdge AI Chatbot - WITH MONGODB PERSISTENCE
+ * 
+ * Features:
+ * - Chat history persistence in MongoDB
+ * - Voice input/output support
+ * - Session management
+ * - Typing animations
+ * - Auto-save with debouncing
+ * 
+ * @version 2.0.0 - MongoDB Integration
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { useUser } from '@clerk/clerk-react'; // ✅ NEW - Import Clerk hook
 import { SERVER_URL } from '../utils/utils';
 import ChatHeader from '../components/ChatHeader';
 import ChatMessage from '../components/ChatMessage';
@@ -12,7 +26,14 @@ import {
   cleanBotResponse 
 } from '../utils/chatUtils';
 
-// Session storage keys
+// ✅ NEW - Import MongoDB chat functions
+import { 
+  fetchAIChatHistory, 
+  saveAIChatHistory, 
+  clearAIChatHistory 
+} from '../utils/chatApi';
+
+// LEGACY - Keep session storage for backward compatibility
 const CHAT_SESSION_KEY = 'finedge-chat-session';
 const CHAT_SESSION_ID_KEY = 'finedge-session-id';
 
@@ -26,13 +47,13 @@ const generateSessionId = (): string => {
   return newId;
 };
 
-// Utility functions for session persistence
+// LEGACY - Keep localStorage functions for backward compatibility
 const saveChatSession = (messages: Message[]) => {
   try {
     localStorage.setItem(CHAT_SESSION_KEY, JSON.stringify({
       messages: messages.map(msg => ({
         ...msg,
-        timestamp: msg.timestamp.toISOString() // Convert Date to string for storage
+        timestamp: msg.timestamp.toISOString()
       })),
       lastUpdated: new Date().toISOString()
     }));
@@ -41,33 +62,36 @@ const saveChatSession = (messages: Message[]) => {
   }
 };
 
-const loadChatSession = (): Message[] | null => {
-  try {
-    const stored = localStorage.getItem(CHAT_SESSION_KEY);
-    if (!stored) return null;
+// ============================================================================================================================================
+// REMOVED AS OF NOW, MIGHT BE USEFUL LATER
+// UNCOMMENT THIS ENTIRE FUNCTION IF NEEDED
+// ============================================================================================================================================
+
+// const loadChatSession = (): Message[] | null => {
+//   try {
+//     const stored = localStorage.getItem(CHAT_SESSION_KEY);
+//     if (!stored) return null;
     
-    const session = JSON.parse(stored);
-    const messages = session.messages.map((msg: any) => ({
-      ...msg,
-      timestamp: new Date(msg.timestamp) // Convert string back to Date
-    }));
+//     const session = JSON.parse(stored);
+//     const messages = session.messages.map((msg: any) => ({
+//       ...msg,
+//       timestamp: new Date(msg.timestamp)
+//     }));
     
-    // Check if session is from the last 24 hours (clean up old sessions)
-    const lastUpdated = new Date(session.lastUpdated);
-    const hoursSinceUpdate = (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60);
+//     const lastUpdated = new Date(session.lastUpdated);
+//     const hoursSinceUpdate = (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60);
     
-    if (hoursSinceUpdate > 24) {
-      // Session is too old, clear it
-      clearChatSession();
-      return null;
-    }
+//     if (hoursSinceUpdate > 24) {
+//       clearChatSession();
+//       return null;
+//     }
     
-    return messages;
-  } catch (error) {
-    console.warn('Failed to load chat session:', error);
-    return null;
-  }
-};
+//     return messages;
+//   } catch (error) {
+//     console.warn('Failed to load chat session:', error);
+//     return null;
+//   }
+// };
 
 const clearChatSession = () => {
   try {
@@ -79,23 +103,23 @@ const clearChatSession = () => {
 
 /**
  * Main Chatbot component - AI Financial Assistant
- * Provides conversational interface for financial queries with voice support
  */
 const Chatbot = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const saveTimeoutRef = useRef<number>(); // ✅ NEW - For debouncing
   
-  // State management with session persistence
-  const [messages, setMessages] = useState<Message[]>(() => {
-    // Try to load saved session on component mount
-    const savedMessages = loadChatSession();
-    return savedMessages || [
-      {
-        type: 'bot',
-        content: 'Hello! I\'m your AI financial assistant. How can I help you today?',
-        timestamp: new Date()
-      }
-    ];
-  });
+  // ✅ NEW - Get Clerk user
+  const { user, isLoaded } = useUser();
+  
+  // Welcome message
+  const welcomeMessage: Message = {
+    type: 'bot',
+    content: 'Hello! I\'m your AI financial assistant. How can I help you today?',
+    timestamp: new Date()
+  };
+  
+  // State management
+  const [messages, setMessages] = useState<Message[]>([welcomeMessage]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [, setCurrentThinkingIndex] = useState(0);
@@ -104,7 +128,103 @@ const Chatbot = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSpeechModalOpen, setIsSpeechModalOpen] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false); // ✅ NEW - Sync indicator
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true); // ✅ NEW - Loading state
 
+  // ============================================================================
+  // ✅ NEW - LOAD CHAT HISTORY FROM MONGODB ON MOUNT
+  // ============================================================================
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (!isLoaded || !user?.id) {
+        setIsLoadingHistory(false);
+        return;
+      }
+
+      console.log('📥 Loading chat history from MongoDB...');
+      setIsLoadingHistory(true);
+
+      try {
+        const history = await fetchAIChatHistory(user.id);
+        
+        if (history && history.length > 0) {
+          // Convert timestamp strings back to Date objects
+          const messagesWithDates = history.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }));
+          
+          setMessages(messagesWithDates);
+          console.log(`✅ Restored ${history.length} messages from MongoDB`);
+        } else {
+          console.log('ℹ️ No previous chat history found, starting fresh');
+          setMessages([welcomeMessage]);
+        }
+      } catch (error) {
+        console.error('❌ Error loading chat history:', error);
+        setMessages([welcomeMessage]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+  }, [isLoaded, user?.id]); // Dependency: load when user is ready
+
+  // ============================================================================
+  // ✅ NEW - AUTO-SAVE TO MONGODB (WITH DEBOUNCING)
+  // ============================================================================
+  useEffect(() => {
+    // Don't save if:
+    // - User not loaded
+    // - No user ID
+    // - Only welcome message
+    // - Currently loading history
+    if (!user?.id || messages.length <= 1 || isLoadingHistory) {
+      return;
+    }
+
+    // Clear previous timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout to save after 2 seconds of inactivity
+    saveTimeoutRef.current = setTimeout(async () => {
+      setIsSyncing(true);
+      console.log('💾 Auto-saving chat history to MongoDB...');
+      
+      const success = await saveAIChatHistory(user.id, messages);
+      
+      setIsSyncing(false);
+      
+      if (success) {
+        console.log('✅ Chat history saved to MongoDB');
+      } else {
+        console.error('❌ Failed to save chat history to MongoDB');
+      }
+    }, 2000); // 2-second debounce
+
+    // Cleanup on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [messages, user?.id, isLoadingHistory]);
+
+  // ============================================================================
+  // LEGACY - Keep localStorage save for backward compatibility
+  // ============================================================================
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveChatSession(messages);
+    }
+  }, [messages]);
+
+  // ============================================================================
+  // SCROLL TO BOTTOM
+  // ============================================================================
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -113,13 +233,9 @@ const Chatbot = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Save chat session whenever messages change
-  useEffect(() => {
-    if (messages.length > 0) {
-      saveChatSession(messages);
-    }
-  }, [messages]);
-
+  // ============================================================================
+  // THINKING ANIMATION
+  // ============================================================================
   useEffect(() => {
     let thinkingInterval: number;
     
@@ -155,34 +271,48 @@ const Chatbot = () => {
     };
   }, [isTyping, currentThinkingPhrases]);
 
+  // ============================================================================
+  // ✅ UPDATED - CLEAR CHAT (CLEARS MONGODB TOO!)
+  // ============================================================================
   const clearChat = async () => {
+    if (!user?.id) {
+      console.warn('⚠️ Cannot clear chat: User not logged in');
+      return;
+    }
+
+    const confirmClear = window.confirm('Are you sure you want to clear all chat history?');
+    if (!confirmClear) return;
+
     try {
-      // Clear backend session
+      console.log('🗑️ Clearing chat history...');
+      
+      // Clear backend agent session (your existing logic)
       const sessionId = generateSessionId();
       const formData = new FormData();
       formData.append('session_id', sessionId);
       
       await axios.post(`${SERVER_URL}/clear-chat-session`, formData);
       
+      // ✅ NEW - Clear MongoDB history
+      await clearAIChatHistory(user.id);
+      
       // Generate new session ID
       localStorage.removeItem(CHAT_SESSION_ID_KEY);
       
+      console.log('✅ Chat history cleared from all sources');
     } catch (error) {
-      console.warn('Failed to clear backend session:', error);
+      console.warn('⚠️ Failed to clear some chat sources:', error);
     }
     
-    // Clear frontend session
-    const welcomeMessage: Message = {
-      type: 'bot',
-      content: 'Hello! I\'m FinEdgeAI, your AI financial assistant. How can I help you today?',
-      timestamp: new Date()
-    };
+    // Clear frontend
     setMessages([welcomeMessage]);
     clearChatSession();
   };
 
+  // ============================================================================
+  // TEXT-TO-SPEECH
+  // ============================================================================
   const speak = (text: string, messageIndex: number) => {
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
     if (isSpeaking === messageIndex) {
@@ -191,8 +321,8 @@ const Chatbot = () => {
     }
 
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-IN'; // Set to Indian English
-    utterance.rate = 0.9; // Slightly slower than default
+    utterance.lang = 'en-IN';
+    utterance.rate = 0.9;
     utterance.pitch = 1;
 
     utterance.onend = () => {
@@ -203,13 +333,15 @@ const Chatbot = () => {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Stop speaking when component unmounts
   useEffect(() => {
     return () => {
       window.speechSynthesis.cancel();
     };
   }, []);
 
+  // ============================================================================
+  // HANDLE MESSAGE SUBMISSION
+  // ============================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -222,7 +354,6 @@ const Chatbot = () => {
     };
     setMessages(prev => [...prev, userMessage]);
     
-    // Get dynamic thinking phrases based on the query
     const dynamicPhrases = getThinkingPhrasesForQuery(input);
     setCurrentThinkingPhrases(dynamicPhrases);
     
@@ -230,7 +361,7 @@ const Chatbot = () => {
     setIsTyping(true);
     setCurrentThinkingIndex(0);
 
-    // Add initial thinking message with dynamic phrase
+    // Add thinking message
     setMessages(prev => [...prev, {
       type: 'bot',
       content: [dynamicPhrases[0]],
@@ -238,177 +369,88 @@ const Chatbot = () => {
       isThinking: true
     }]);
 
-  //       try {
-  //         const sessionId = generateSessionId();
-  //         const formData = new FormData();
-  //         formData.append('input', input);
-  //         formData.append('session_id', sessionId);
+    try {
+      const sessionId = generateSessionId();
+      const formData = new FormData();
+      formData.append('input', input);
+      formData.append('session_id', sessionId);
 
-  //         const config = {
-  //           method: 'post',
-  //           maxBodyLength: Infinity,
-  //           url: `${SERVER_URL}/agent`,
-  //           data: formData
-  //         };
+      const config = {
+        method: 'post',
+        maxBodyLength: Infinity,
+        url: `${SERVER_URL}/agent`,
+        data: formData
+      };
 
-  //         const response = await axios.request(config);
-  //         console.log(response.data);
-  //         setIsTyping(false);
-          
-  //         // Clean the response text using utility function
-  //         const cleanedOutput = cleanBotResponse(response.data.output || response.data || '');
-          
-  //         // Remove the thinking message and show only the final clean response
-  //         setMessages(prev => {
-  //           const lastMessage = prev[prev.length - 1];
-  //           if (lastMessage.isThinking) {
-  //             return [
-  //               ...prev.slice(0, -1),
-  //               {
-  //                 type: 'bot',
-  //                 content: '',
-  //                 timestamp: new Date(),
-  //                 isTyping: true
-  //               }
-  //             ];
-  //           }
-  //           return prev;
-  //         });
-
-  //         // Show the cleaned output with a typing effect
-  //         let displayedText = '';
-  //         let charIndex = 0;
-
-  //         const typingInterval = setInterval(() => {
-  //           if (charIndex < cleanedOutput.length) {
-  //             displayedText += cleanedOutput[charIndex];
-  //             charIndex++;
-              
-  //             // Update the last message with new text
-  //             setMessages(prev => {
-  //               const newMessages = [...prev];
-  //               newMessages[newMessages.length - 1] = {
-  //                 type: 'bot',
-  //                 content: displayedText,
-  //                 timestamp: new Date()
-  //               };
-  //               return newMessages;
-  //             });
-  //           } else {
-  //             clearInterval(typingInterval);
-  //           }
-  //         }, 30); // Adjust speed as needed - now typing character by character
-
-  //       } catch (error) {
-  //         console.error(error);
-  //         setIsTyping(false);
-  //         setMessages(prev => {
-  //           const lastMessage = prev[prev.length - 1];
-  //           if (lastMessage.isThinking) {
-  //             return [
-  //               ...prev.slice(0, -1),
-  //               {
-  //                 type: 'bot',
-  //                 content: "Sorry, I encountered an error. Please try again.",
-  //                 timestamp: new Date()
-  //               }
-  //             ];
-  //           }
-  //           return prev;
-  //         });
-  //       }
-  // };
-
-
-
-
-
-
-  //slightly changed version to show final response directly after thinking phrases
-          try {
-          const sessionId = generateSessionId();
-          const formData = new FormData();
-          formData.append('input', input);
-          formData.append('session_id', sessionId);
-
-          const config = {
-            method: 'post',
-            maxBodyLength: Infinity,
-            url: `${SERVER_URL}/agent`,
-            data: formData
-          };
-
-          const response = await axios.request(config);
-          console.log(response.data);
-          setIsTyping(false);
-          
-          // Clean the response text using utility function (LEGACY)
-          const cleanedOutput = cleanBotResponse(response.data.output || response.data || '');
-          
-          // Remove the thinking message and show only the final clean response (LEGACY)
-          setMessages(prev => {
-            const lastMessage = prev[prev.length - 1];
-            if (lastMessage.isThinking) {
-              return [
-                ...prev.slice(0, -1),
-                {
-                  type: 'bot',
-                  content: '',
-                  timestamp: new Date(),
-                  isTyping: true
-                }
-              ];
+      const response = await axios.request(config);
+      console.log(response.data);
+      setIsTyping(false);
+      
+      const cleanedOutput = cleanBotResponse(response.data.output || response.data || '');
+      
+      // Remove thinking message
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage.isThinking) {
+          return [
+            ...prev.slice(0, -1),
+            {
+              type: 'bot',
+              content: '',
+              timestamp: new Date(),
+              isTyping: true
             }
-            return prev;
-          });
-
-          // ENHANCED - Show the cleaned output with FASTER typing effect
-          // Changed from 30ms to 8ms per character for 4x speed improvement
-          let displayedText = '';
-          let charIndex = 0;
-
-          const typingInterval = setInterval(() => {
-            if (charIndex < cleanedOutput.length) {
-              displayedText += cleanedOutput[charIndex];
-              charIndex++;
-              
-              // Update the last message with new text (LEGACY logic)
-              setMessages(prev => {
-                const newMessages = [...prev];
-                newMessages[newMessages.length - 1] = {
-                  type: 'bot',
-                  content: displayedText,
-                  timestamp: new Date()
-                };
-                return newMessages;
-              });
-            } else {
-              clearInterval(typingInterval);
-            }
-          }, 8); // ENHANCED - Changed from 30ms to 8ms (4x faster typing animation)
-
-        } catch (error) {
-          console.error(error);
-          setIsTyping(false);
-          // Error handling (LEGACY - no changes)
-          setMessages(prev => {
-            const lastMessage = prev[prev.length - 1];
-            if (lastMessage.isThinking) {
-              return [
-                ...prev.slice(0, -1),
-                {
-                  type: 'bot',
-                  content: "Sorry, I encountered an error. Please try again.",
-                  timestamp: new Date()
-                }
-              ];
-            }
-            return prev;
-          });
+          ];
         }
+        return prev;
+      });
+
+      // Typing animation
+      let displayedText = '';
+      let charIndex = 0;
+
+      const typingInterval = setInterval(() => {
+        if (charIndex < cleanedOutput.length) {
+          displayedText += cleanedOutput[charIndex];
+          charIndex++;
+          
+          setMessages(prev => {
+            const newMessages = [...prev];
+            newMessages[newMessages.length - 1] = {
+              type: 'bot',
+              content: displayedText,
+              timestamp: new Date()
+            };
+            return newMessages;
+          });
+        } else {
+          clearInterval(typingInterval);
+        }
+      }, 8);
+
+    } catch (error) {
+      console.error(error);
+      setIsTyping(false);
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage.isThinking) {
+          return [
+            ...prev.slice(0, -1),
+            {
+              type: 'bot',
+              content: "Sorry, I encountered an error. Please try again.",
+              timestamp: new Date()
+            }
+          ];
+        }
+        return prev;
+      });
+    }
   };
 
-  // Event handlers
+  // ============================================================================
+  // EVENT HANDLERS
+  // ============================================================================
   const handlePromptClick = (prompt: string) => {
     setInput(prompt);
   };
@@ -471,13 +513,25 @@ const Chatbot = () => {
     }
   };
 
-
-
+  // ============================================================================
+  // RENDER
+  // ============================================================================
   return (
     <div className="h-[calc(100vh-2rem)] p-6">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl h-full flex flex-col">
-        {/* Chat Header */}
-        <ChatHeader onClearChat={clearChat} />
+        {/* ✅ NEW - Updated Chat Header with sync indicator */}
+        <ChatHeader 
+          onClearChat={clearChat}
+          syncStatus={isSyncing ? 'syncing' : 'synced'} // Pass sync status
+        />
+
+        {/* ✅ NEW - Loading indicator */}
+        {isLoadingHistory && (
+          <div className="flex items-center justify-center p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-indigo-600 dark:border-indigo-400 border-t-transparent mr-3"></div>
+            <span className="text-gray-600 dark:text-gray-300">Loading chat history...</span>
+          </div>
+        )}
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -519,4 +573,4 @@ const Chatbot = () => {
   );
 };
 
-export default Chatbot; 
+export default Chatbot;

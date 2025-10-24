@@ -189,6 +189,11 @@ class Collections:
     GOALS = "financial_goals"
     RISK_TOLERANCE = "risk_tolerance"
     SESSIONS = "user_sessions"
+    # ✅ NEW - Chat history collections
+    AI_CHAT_HISTORY = "ai_chat_history"
+    
+    # ✅ NEW - Financial Path history collections
+    FINANCIAL_PATH_HISTORY = "financial_path_history"  
 
 
 

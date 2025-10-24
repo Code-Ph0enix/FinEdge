@@ -1371,6 +1371,262 @@ def delete_goal(goal_id):
         return jsonify({'error': str(e)}), 500
     
 
+# ===========================================================================================================
+#                              AI ADVISOR CHAT HISTORY API
+# ===========================================================================================================
+
+@app.route('/api/chat/ai-advisor/history', methods=['GET', 'POST', 'DELETE'])
+def manage_ai_chat_history():
+    """
+    Manage AI Advisor chat history with MongoDB persistence
+    
+    GET: Retrieve user's chat history
+    POST: Save/Update chat history
+    DELETE: Clear chat history
+    
+    Query Params (GET/DELETE): clerkUserId
+    Body (POST): { clerkUserId, messages }
+    """
+    try:
+        # Get clerkUserId from query params or body
+        clerk_user_id = request.args.get('clerkUserId')
+        if not clerk_user_id and request.method in ['POST', 'DELETE']:
+            data = request.json
+            clerk_user_id = data.get('clerkUserId')
+        
+        if not clerk_user_id:
+            logger.error("Missing clerkUserId in chat history request")
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        chat_collection = db[Collections.AI_CHAT_HISTORY]
+        
+        # ========== GET: Retrieve chat history ==========
+        if request.method == 'GET':
+            logger.info(f"📥 Fetching chat history for user: {clerk_user_id}")
+            
+            chat_doc = chat_collection.find_one({'clerkUserId': clerk_user_id})
+            
+            if chat_doc:
+                messages = chat_doc.get('messages', [])
+                logger.info(f"✅ Found {len(messages)} messages for user: {clerk_user_id}")
+                return jsonify({
+                    'success': True,
+                    'messages': messages,
+                    'lastUpdated': chat_doc.get('updatedAt', '').isoformat() if chat_doc.get('updatedAt') else '',
+                    'messageCount': len(messages)
+                }), 200
+            else:
+                logger.info(f"ℹ️ No chat history found for user: {clerk_user_id}")
+                return jsonify({
+                    'success': True,
+                    'messages': [],
+                    'lastUpdated': '',
+                    'messageCount': 0
+                }), 200
+        
+        # ========== POST: Save chat history ==========
+        elif request.method == 'POST':
+            data = request.json
+            messages = data.get('messages', [])
+            
+            # Validate messages
+            if not isinstance(messages, list):
+                return jsonify({'error': 'messages must be an array'}), 400
+            
+            # Limit to last 100 messages to prevent huge documents
+            if len(messages) > 100:
+                logger.warning(f"⚠️ Trimming messages from {len(messages)} to 100")
+                messages = messages[-100:]
+            
+            logger.info(f"💾 Saving {len(messages)} messages for user: {clerk_user_id}")
+            
+            chat_doc = {
+                'clerkUserId': clerk_user_id,
+                'messages': messages,
+                'updatedAt': datetime.utcnow(),
+                'messageCount': len(messages)
+            }
+            
+            # Upsert (update if exists, insert if not)
+            result = chat_collection.update_one(
+                {'clerkUserId': clerk_user_id},
+                {
+                    '$set': chat_doc,
+                    '$setOnInsert': {'createdAt': datetime.utcnow()}
+                },
+                upsert=True
+            )
+            
+            logger.info(f"✅ Chat history saved for user: {clerk_user_id} ({len(messages)} messages)")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Chat history saved successfully',
+                'messageCount': len(messages),
+                'modified': result.modified_count > 0,
+                'upserted': result.upserted_id is not None
+            }), 200
+        
+        # ========== DELETE: Clear chat history ==========
+        elif request.method == 'DELETE':
+            logger.info(f"🗑️ Clearing chat history for user: {clerk_user_id}")
+            
+            result = chat_collection.delete_one({'clerkUserId': clerk_user_id})
+            
+            if result.deleted_count > 0:
+                logger.info(f"✅ Deleted chat history for user: {clerk_user_id}")
+                return jsonify({
+                    'success': True,
+                    'message': 'Chat history cleared successfully',
+                    'deletedCount': result.deleted_count
+                }), 200
+            else:
+                logger.info(f"ℹ️ No chat history to delete for user: {clerk_user_id}")
+                return jsonify({
+                    'success': True,
+                    'message': 'No chat history found',
+                    'deletedCount': 0
+                }), 200
+            
+    except Exception as e:
+        logger.error(f"❌ Error managing AI chat history: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': 'Failed to manage chat history',
+            'details': str(e)
+        }), 500
+
+
+
+
+
+
+
+
+
+# ===========================================================================================================
+#                         FINANCIAL PATH HISTORY MANAGEMENT API
+# ===========================================================================================================
+
+@app.route('/api/financial-path/history', methods=['GET', 'POST', 'DELETE'])
+def manage_financial_path_history():
+    """
+    Manage Financial Path query history with MongoDB persistence
+    
+    GET: Retrieve user's last financial path result
+    POST: Save new financial path result
+    DELETE: Clear all financial path history
+    
+    Query Params (GET/DELETE): clerkUserId
+    Body (POST): { clerkUserId, riskProfile, userQuery, serverData, fetchedUserData }
+    """
+    try:
+        # Get clerkUserId from query params or body
+        clerk_user_id = request.args.get('clerkUserId')
+        if not clerk_user_id and request.method in ['POST', 'DELETE']:
+            data = request.json
+            clerk_user_id = data.get('clerkUserId')
+        
+        if not clerk_user_id:
+            logger.error("Missing clerkUserId in financial path request")
+            return jsonify({'error': 'clerkUserId is required'}), 400
+        
+        db = get_database()
+        path_collection = db[Collections.FINANCIAL_PATH_HISTORY]
+        
+        # ========== GET: Retrieve last financial path result ==========
+        if request.method == 'GET':
+            logger.info(f"📥 Fetching financial path history for user: {clerk_user_id}")
+            
+            # Get most recent result
+            path_doc = path_collection.find_one(
+                {'clerkUserId': clerk_user_id},
+                sort=[('createdAt', -1)]  # Sort by newest first
+            )
+            
+            if path_doc:
+                logger.info(f"✅ Found financial path result for user: {clerk_user_id}")
+                return jsonify({
+                    'success': True,
+                    'data': serialize_document(path_doc),
+                'lastUpdated': path_doc.get('createdAt').isoformat() if path_doc.get('createdAt') and isinstance(path_doc.get('createdAt'), datetime) else str(path_doc.get('createdAt', ''))
+                }), 200
+            else:
+                logger.info(f"ℹ️ No financial path history found for user: {clerk_user_id}")
+                return jsonify({
+                    'success': True,
+                    'data': None,
+                    'lastUpdated': ''
+                }), 200
+        
+        # ========== POST: Save new financial path result ==========
+        elif request.method == 'POST':
+            data = request.json
+            
+            logger.info(f"💾 Saving financial path result for user: {clerk_user_id}")
+            
+            # Prepare document
+            path_doc = {
+                'clerkUserId': clerk_user_id,
+                'riskProfile': data.get('riskProfile', ''),
+                'userQuery': data.get('userQuery', ''),
+                'serverData': data.get('serverData', {}),
+                'fetchedUserData': data.get('fetchedUserData', {}),
+                'createdAt': datetime.utcnow(),
+                'updatedAt': datetime.utcnow()
+            }
+            
+            # Keep only last 5 results per user (to save space)
+            existing_count = path_collection.count_documents({'clerkUserId': clerk_user_id})
+            if existing_count >= 5:
+                # Delete oldest result
+                oldest = path_collection.find_one(
+                    {'clerkUserId': clerk_user_id},
+                    sort=[('createdAt', 1)]  # Sort by oldest first
+                )
+                if oldest:
+                    path_collection.delete_one({'_id': oldest['_id']})
+                    logger.info(f"🗑️ Deleted oldest financial path result for user: {clerk_user_id}")
+            
+            # Insert new result
+            result = path_collection.insert_one(path_doc)
+            path_doc['_id'] = result.inserted_id
+            
+            logger.info(f"✅ Saved financial path result for user: {clerk_user_id}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Financial path result saved successfully',
+                'data': serialize_document(path_doc)
+            }), 201
+        
+        # ========== DELETE: Clear all financial path history ==========
+        elif request.method == 'DELETE':
+            logger.info(f"🗑️ Clearing financial path history for user: {clerk_user_id}")
+            
+            result = path_collection.delete_many({'clerkUserId': clerk_user_id})
+            
+            logger.info(f"✅ Deleted {result.deleted_count} financial path result(s) for user: {clerk_user_id}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Financial path history cleared successfully',
+                'deletedCount': result.deleted_count
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"❌ Error managing financial path history: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': 'Failed to manage financial path history',
+            'details': str(e)
+        }), 500
+
+    
+
 # ==================== END OF NEW ENDPOINTS ====================
 
 if __name__ == '__main__':
