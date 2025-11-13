@@ -27,7 +27,10 @@ import google.generativeai as genai  # type: ignore
 
 # LangChain imports for ReAct agent (LEGACY)
 # from langchain.agents import AgentExecutor, create_react_agent
-from langchain.agents import AgentExecutor, create_react_agent
+# from langchain_classic.agents import AgentExecutor, create_react_agent
+from langchain.agents import create_react_agent
+from langchain_core.agents import AgentExecutor
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 
