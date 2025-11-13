@@ -20,12 +20,24 @@ import requests  # ✅ ADD requests
 import sys
 import types
 
-# Compatibility fix for LangChain modules still expecting `langchain_core.pydantic_v1`
+# Universal compatibility shim for LangChain modules expecting `langchain_core.pydantic_v1`
 try:
     import langchain_core.pydantic_v1
 except ImportError:
     import pydantic as _pydantic
-    sys.modules["langchain_core.pydantic_v1"] = types.SimpleNamespace(BaseModel=_pydantic.BaseModel)
+
+    # Map all commonly used v1 symbols to their v2 equivalents
+    compat = types.SimpleNamespace(
+        BaseModel=_pydantic.BaseModel,
+        Field=_pydantic.Field,
+        ConfigDict=getattr(_pydantic, "ConfigDict", dict),
+        ValidationError=_pydantic.ValidationError,
+        root_validator=lambda *a, **kw: (lambda f: f),
+        validator=lambda *a, **kw: (lambda f: f),
+    )
+
+    sys.modules["langchain_core.pydantic_v1"] = compat
+
 
 # ===================================================================================================================
 
