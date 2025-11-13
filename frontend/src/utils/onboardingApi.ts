@@ -310,7 +310,7 @@ export const validateOnboardingData = (data: OnboardingCompletionPayload): boole
 // import axios from 'axios';
 
 // // Get server URL from environment or default
-// const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+// const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'https://finedge-backend.onrender.com';
 
 // // Types
 // interface OnboardingPayload {

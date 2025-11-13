@@ -11,7 +11,7 @@ import axios from 'axios';
 import { Message } from '../types'; // ✅ FIXED - Import from types
 
 // Server URL configuration
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'https://finedge-backend.onrender.com';
 
 // ✅ REMOVED duplicate Message interface (using imported one)
 

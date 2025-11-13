@@ -92,7 +92,7 @@
    ```bash
    python app.py
    ```  
-   ✅ The backend server will start on **http://localhost:5000**  
+   ✅ The backend server will start on **https://finedge-backend.onrender.com**  
 
 ### 🎨 Frontend  
 1️⃣ From the frontend directory:  
@@ -319,7 +319,7 @@ From the backend directory:
 python app.py
 ```
 
-✅ The backend server will start on `http://localhost:5000`
+✅ The backend server will start on `https://finedge-backend.onrender.com`
 
 ### 🎨 Frontend
 
