@@ -332,7 +332,7 @@ From the backend directory:
 python app.py
 ```
 
-✅ The backend server will start on `https://finedge-backend.onrender.com`
+✅ The backend server will start on `https://localhost:5000`
 
 ### 🎨 Frontend
 
