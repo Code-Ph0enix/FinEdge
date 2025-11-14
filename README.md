@@ -151,7 +151,7 @@ FinEdge is an AI-driven personal finance management and investment advisory plat
   <img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="700">
   
 <h1 align="center">
-  🌐 <a href="https://fin-edge-lac.vercel.app/" target="_blank">LIVE DEMO</a>
+  🌐 <a href="https://finedge-ai.vercel.app/" target="_blank">LIVE DEMO</a>
 </h1>
 
 </center>
