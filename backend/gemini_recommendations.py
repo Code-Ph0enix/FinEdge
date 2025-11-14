@@ -22,7 +22,7 @@ Last Updated: October 2025
 
 # VERY IMPORTANT COMMAND
 # // ✅ DELETE CORRUPT CACHE
-# fetch('http://localhost:5000/api/recommendations/clear?clerkUserId=user_34H9ahPZKL5ggfNLNYxP1nT3ECo', {
+# fetch('https://finedge-backend.onrender.com/api/recommendations/clear?clerkUserId=user_34H9ahPZKL5ggfNLNYxP1nT3ECo', {
 #   method: 'DELETE'
 # })
 # .then(res => res.json())

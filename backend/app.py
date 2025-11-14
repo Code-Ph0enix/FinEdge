@@ -14,6 +14,33 @@ from datetime import datetime, timedelta  # ✅ ADD timedelta
 import logging
 import requests  # ✅ ADD requests
 
+
+# =================================================================================================================
+# REMOVE THIS BLOCK OR MODIFY IT IF AGAIN SOMETHING BREAKS IN DEPLOTMENT
+import sys
+import types
+
+# Universal compatibility shim for LangChain modules expecting `langchain_core.pydantic_v1`
+try:
+    import langchain_core.pydantic_v1
+except ImportError:
+    import pydantic as _pydantic
+
+    # Map all commonly used v1 symbols to their v2 equivalents
+    compat = types.SimpleNamespace(
+        BaseModel=_pydantic.BaseModel,
+        Field=_pydantic.Field,
+        ConfigDict=getattr(_pydantic, "ConfigDict", dict),
+        ValidationError=_pydantic.ValidationError,
+        root_validator=lambda *a, **kw: (lambda f: f),
+        validator=lambda *a, **kw: (lambda f: f),
+    )
+
+    sys.modules["langchain_core.pydantic_v1"] = compat
+
+
+# ===================================================================================================================
+
 # NEW - ADDED: MongoDB imports for user data management
 from database import get_database, close_database_connection, Collections, test_connection
 from models import (
