@@ -1,3 +1,23 @@
+Flask
+Flask-Cors
+python-dotenv
+langchain
+langchain_ollama
+langchain_google_genai
+langchain_community
+langchain_openai
+langchain_groq
+langchain_experimental
+google-generativeai>=0.5.4
+yfinance
+requests
+ddgs
+pandas
+numpy
+datetime
+pymongo
+dnspython
+
 # Flask
 # Flask-Cors
 # python-dotenv

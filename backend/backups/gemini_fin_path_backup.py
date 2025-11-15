@@ -1,138 +1,23 @@
-"""
-gemini fin path in backend - UPDATED TO GROQ/HUGGINGFACE WITH FALLBACK
-
 #=========================================================================================================================
-# LATEST VERSION OF THE CODE USING GROQ/HUGGINGFACE WITH FALLBACK
+# LATEST VERSION OF THE CODE USING GEMINI 2.5 PRO MODEL
 #=========================================================================================================================
-"""
 
 import os
 import json
-import logging
+import google.generativeai as genai
 from dotenv import load_dotenv
-
-# Configure logging FIRST
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Import Groq for primary LLM
-try:
-    from langchain_groq import ChatGroq
-    GROQ_AVAILABLE = True
-except ImportError:
-    logger.warning("langchain_groq not available")
-    GROQ_AVAILABLE = False
-
-# Import HuggingFace for fallback
-try:
-    from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-    HF_AVAILABLE = True
-except ImportError:
-    try:
-        from langchain_community.chat_models.huggingface import ChatHuggingFace
-        from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
-        HF_AVAILABLE = True
-    except ImportError:
-        logger.warning("langchain_huggingface not available")
-        HF_AVAILABLE = False
 
 # Load API key
 load_dotenv()
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-# ==================== API KEY FALLBACK CONFIGURATION ====================
-
-# Multi-provider API key fallback system
-GROQ_API_KEYS = [
-    os.getenv("GROQ_API_KEY_1"),
-    os.getenv("GROQ_API_KEY_2"),
-    os.getenv("GROQ_API_KEY_3"),
-]
-
-HF_TOKENS = [
-    os.getenv("HF_TOKEN_1"),
-    os.getenv("HF_TOKEN_2"),
-    os.getenv("HF_TOKEN_3"),
-]
-
-# Global variables to track active provider
-ACTIVE_LLM_PROVIDER = None  # 'groq' or 'huggingface'
-ACTIVE_API_KEY = None
-ACTIVE_KEY_INDEX = None
-
-
-def initialize_llm_with_fallback(temperature: float = 0.7, max_tokens: int = 16384, model_override: str = None):
-    """
-    Initialize LLM with automatic fallback logic.
-    Tries Groq keys first (1, 2, 3), then HuggingFace tokens (1, 2, 3).
-    """
-    global ACTIVE_LLM_PROVIDER, ACTIVE_API_KEY, ACTIVE_KEY_INDEX
-
-    # Try Groq keys first
-    if GROQ_AVAILABLE:
-        for idx, api_key in enumerate(GROQ_API_KEYS, 1):
-            if api_key:
-                try:
-                    logger.info(f"Attempting to initialize Groq with API key #{idx}...")
-                    llm = ChatGroq(
-                        model=model_override or "llama-3.3-70b-versatile",  # your ai model here
-                        groq_api_key=api_key,
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    )
-                    
-                    # Test the connection with a simple query
-                    from langchain_core.messages import HumanMessage
-                    test_response = llm.invoke([HumanMessage(content="test")])
-                    
-                    if test_response and hasattr(test_response, 'content'):
-                        ACTIVE_LLM_PROVIDER = 'groq'
-                        ACTIVE_API_KEY = api_key
-                        ACTIVE_KEY_INDEX = idx
-                        logger.info(f"✅ Successfully initialized Groq with API key #{idx}")
-                        return llm
-                    
-                except Exception as e:
-                    logger.warning(f"✗ Groq API key #{idx} failed: {e}")
-                    continue
-
-    # Fallback to HuggingFace
-    if HF_AVAILABLE:
-        for idx, hf_token in enumerate(HF_TOKENS, 1):
-            if hf_token:
-                try:
-                    logger.info(f"Attempting to initialize HuggingFace with token #{idx}...")
-                    
-                    # Initialize HuggingFace endpoint
-                    llm_endpoint = HuggingFaceEndpoint(
-                        repo_id=model_override or "your-ai-model-here",  # your ai model here
-                        huggingfacehub_api_token=hf_token,
-                        temperature=temperature,
-                        max_new_tokens=max_tokens,
-                    )
-                    
-                    # Wrap with ChatHuggingFace for chat interface
-                    llm = ChatHuggingFace(llm=llm_endpoint)
-                    
-                    # Test the connection
-                    from langchain_core.messages import HumanMessage
-                    test_response = llm.invoke([HumanMessage(content="test")])
-                    
-                    if test_response and hasattr(test_response, 'content'):
-                        ACTIVE_LLM_PROVIDER = 'huggingface'
-                        ACTIVE_API_KEY = hf_token
-                        ACTIVE_KEY_INDEX = idx
-                        logger.info(f"✅ Successfully initialized HuggingFace with token #{idx}")
-                        return llm
-                    
-                except Exception as e:
-                    logger.warning(f"✗ HuggingFace token #{idx} failed: {e}")
-                    continue
-
-    # If all keys failed
-    raise ValueError(
-        "All API keys failed. Please check your GROQ_API_KEY_1/2/3 and HF_TOKEN_1/2/3 environment variables."
-    )
-
+# --- Enhanced Config ---
+generation_config = {
+    "temperature": 0.7,
+    "top_p": 0.95,
+    "max_output_tokens": 16384,
+    "response_mime_type": "application/json"
+}
 
 # --- Enhanced System Instruction with Analysis ---
 SYSTEM_INSTRUCTION = """
@@ -209,14 +94,11 @@ IMPORTANT GUIDELINES:
 Do NOT return any text outside of this JSON object.
 """
 
-# Initialize model with fallback
-try:
-    model = initialize_llm_with_fallback(temperature=0.7, max_tokens=16384)
-    logger.info(f"✅ Model initialized successfully using {ACTIVE_LLM_PROVIDER} (key #{ACTIVE_KEY_INDEX})")
-except Exception as e:
-    logger.error(f"❌ Failed to initialize model: {e}")
-    model = None
-
+model = genai.GenerativeModel(
+    model_name="gemini-2.0-flash-exp",
+    generation_config=generation_config,
+    system_instruction=SYSTEM_INSTRUCTION
+)
 
 def get_gemini_response(user_input: str, risk: str, user_data: dict = None) -> str:
     """
@@ -227,36 +109,6 @@ def get_gemini_response(user_input: str, risk: str, user_data: dict = None) -> s
         risk: Risk profile (conservative/moderate/aggressive)
         user_data: Additional user data fetched automatically (optional)
     """
-    if model is None:
-        error_response = {
-            "nodes": [
-                {
-                    "id": "error",
-                    "position": {"x": 250, "y": 100},
-                    "data": {"label": "Error: Model not initialized"},
-                    "style": {"background": "bg-red-100", "border": "border-red-400"}
-                }
-            ],
-            "edges": [],
-            "analysis": {
-                "summary": "Model initialization failed. Please check API keys.",
-                "riskAssessment": "Unable to assess risk at this time.",
-                "expectedReturns": "N/A",
-                "timeHorizon": "N/A",
-                "keyBenefits": ["Please check configuration"],
-                "considerations": ["Verify GROQ_API_KEY_1/2/3 and HF_TOKEN_1/2/3"],
-                "assetBreakdown": [],
-                "taxImplications": "N/A",
-                "rebalancingStrategy": "N/A"
-            },
-            "userProfile": {
-                "investmentAmount": "N/A",
-                "riskProfile": risk,
-                "goals": []
-            }
-        }
-        return json.dumps(error_response)
-    
     try:
         # 🔹 AUTOMATIC USER DATA PROCESSING - START
         # This section processes automatically fetched user data
@@ -283,32 +135,11 @@ Risk Profile: '{risk}'
 
 Based on the above information, create a comprehensive investment analysis with detailed textual explanations and a visual flowchart pathway. Ensure all analysis fields are thoroughly populated with actionable insights specific to Indian markets and regulations."""
 
-        # Build message with system instruction
-        from langchain_core.messages import SystemMessage, HumanMessage
-        
-        messages = [
-            SystemMessage(content=SYSTEM_INSTRUCTION),
-            HumanMessage(content=prompt)
-        ]
-        
-        response = model.invoke(messages)
-        
-        # Extract response text
-        response_text = response.content.strip()
-        
-        # Clean up markdown formatting if present
-        if response_text.startswith('```'):
-            response_text = response_text[7:]
-        elif response_text.startswith('```'):
-            response_text = response_text[3:]
-        if response_text.endswith('```'):
-            response_text = response_text[:-3]
-        
-        return response_text.strip()
+        response = model.generate_content(prompt)
+        return response.text.strip()
         
     except Exception as e:
         # Return a structured error response
-        logger.error(f"Error generating response: {e}")
         error_response = {
             "nodes": [
                 {
@@ -338,7 +169,6 @@ Based on the above information, create a comprehensive investment analysis with 
         }
         return json.dumps(error_response)
 
-
 if __name__ == "__main__":
     test_query = "I have ₹1 lakh to invest for 3-5 years. Safety is my primary concern."
     test_risk = "conservative"
@@ -355,8 +185,7 @@ if __name__ == "__main__":
     print(f"Test Query: {test_query}")
     print(f"Risk Profile: {test_risk}")
     print(f"User Data: {test_user_data}\n")
-    print(f"Active Provider: {ACTIVE_LLM_PROVIDER} (Key #{ACTIVE_KEY_INDEX})")
-    print("--- Response ---")
+    print("--- Gemini Response ---")
     
     response = get_gemini_response(test_query, test_risk, test_user_data)
     

@@ -1,146 +1,79 @@
 """
-gemini recommendations - UPDATED TO GROQ/HUGGINGFACE WITH FALLBACK
+=========================================================================================================================
+FinEdge AI-Powered Investment Recommendations Engine
+=========================================================================================================================
+
+Uses Google Gemini AI to generate personalized investment recommendations based on:
+- User's financial profile (income, expenses, savings, risk tolerance)
+- Current market conditions (Nifty, Sensex, sector performance)
+- Portfolio gaps and diversification needs
+- Financial goals and investment horizon
+
+Author: FinEdge Team
+Version: 2.0.0
+Last Updated: October 2025
+=========================================================================================================================
 """
+
+
+# ======================================================================================================================================================
+# clear cache command if needed
+# run this in console tab of the chrome browser when testing recommendations. or while starting new. 
+
+# VERY IMPORTANT COMMAND
+# // ✅ DELETE CORRUPT CACHE
+# fetch('https://finedge-backend.onrender.com/api/recommendations/clear?clerkUserId=user_34H9ahPZKL5ggfNLNYxP1nT3ECo', {
+#   method: 'DELETE'
+# })
+# .then(res => res.json())
+# .then(data => {
+#   console.log('✅ Cache cleared:', data);
+#   // Now reload page
+#   window.location.reload();
+# });
+
+# ======================================================================================================================================================
+
+
+
+
+
+
+
+
 
 import os
 import json
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
+import google.generativeai as genai
 
-# Configure logging FIRST (before imports that use logger)
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import Groq for primary LLM
-try:
-    from langchain_groq import ChatGroq
-    GROQ_AVAILABLE = True
-except ImportError:
-    logger.warning("langchain_groq not available")
-    GROQ_AVAILABLE = False
+# Configure Gemini AI
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if not GEMINI_API_KEY:
+    raise ValueError("❌ GEMINI_API_KEY not found in environment variables")
 
-# Import HuggingFace for fallback
-try:
-    from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-    HF_AVAILABLE = True
-except ImportError:
-    try:
-        from langchain_community.chat_models.huggingface import ChatHuggingFace
-        from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
-        HF_AVAILABLE = True
-    except ImportError:
-        logger.warning("langchain_huggingface not available")
-        HF_AVAILABLE = False
-
-# ==================== API KEY FALLBACK CONFIGURATION ====================
-
-# Multi-provider API key fallback system
-GROQ_API_KEYS = [
-    os.getenv("GROQ_API_KEY_1"),
-    os.getenv("GROQ_API_KEY_2"),
-    os.getenv("GROQ_API_KEY_3"),
-]
-
-HF_TOKENS = [
-    os.getenv("HF_TOKEN_1"),
-    os.getenv("HF_TOKEN_2"),
-    os.getenv("HF_TOKEN_3"),
-]
-
-# Global variables to track active provider
-ACTIVE_LLM_PROVIDER = None  # 'groq' or 'huggingface'
-ACTIVE_API_KEY = None
-ACTIVE_KEY_INDEX = None
-
-
-def initialize_llm_with_fallback(temperature: float = 0.7, max_tokens: int = 8192, model_override: str = None):
-    """
-    Initialize LLM with automatic fallback logic.
-    Tries Groq keys first (1, 2, 3), then HuggingFace tokens (1, 2, 3).
-    """
-    global ACTIVE_LLM_PROVIDER, ACTIVE_API_KEY, ACTIVE_KEY_INDEX
-
-    # Try Groq keys first
-    if GROQ_AVAILABLE:
-        for idx, api_key in enumerate(GROQ_API_KEYS, 1):
-            if api_key:
-                try:
-                    logger.info(f"Attempting to initialize Groq with API key #{idx}...")
-                    llm = ChatGroq(
-                        model=model_override or "llama-3.3-70b-versatile",  # your ai model here
-                        groq_api_key=api_key,
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    )
-                    
-                    # Test the connection with a simple query
-                    from langchain_core.messages import HumanMessage
-                    test_response = llm.invoke([HumanMessage(content="test")])
-                    
-                    if test_response and hasattr(test_response, 'content'):
-                        ACTIVE_LLM_PROVIDER = 'groq'
-                        ACTIVE_API_KEY = api_key
-                        ACTIVE_KEY_INDEX = idx
-                        logger.info(f"✅ Successfully initialized Groq with API key #{idx}")
-                        return llm
-                    
-                except Exception as e:
-                    logger.warning(f"✗ Groq API key #{idx} failed: {e}")
-                    continue
-
-    # Fallback to HuggingFace
-    if HF_AVAILABLE:
-        for idx, hf_token in enumerate(HF_TOKENS, 1):
-            if hf_token:
-                try:
-                    logger.info(f"Attempting to initialize HuggingFace with token #{idx}...")
-                    
-                    # Initialize HuggingFace endpoint
-                    llm_endpoint = HuggingFaceEndpoint(
-                        repo_id=model_override or "your-ai-model-here",  # your ai model here
-                        huggingfacehub_api_token=hf_token,
-                        temperature=temperature,
-                        max_new_tokens=max_tokens,
-                    )
-                    
-                    # Wrap with ChatHuggingFace for chat interface
-                    llm = ChatHuggingFace(llm=llm_endpoint)
-                    
-                    # Test the connection
-                    from langchain_core.messages import HumanMessage
-                    test_response = llm.invoke([HumanMessage(content="test")])
-                    
-                    if test_response and hasattr(test_response, 'content'):
-                        ACTIVE_LLM_PROVIDER = 'huggingface'
-                        ACTIVE_API_KEY = hf_token
-                        ACTIVE_KEY_INDEX = idx
-                        logger.info(f"✅ Successfully initialized HuggingFace with token #{idx}")
-                        return llm
-                    
-                except Exception as e:
-                    logger.warning(f"✗ HuggingFace token #{idx} failed: {e}")
-                    continue
-
-    # If all keys failed
-    raise ValueError(
-        "All API keys failed. Please check your GROQ_API_KEY_1/2/3 and HF_TOKEN_1/2/3 environment variables."
-    )
+genai.configure(api_key=GEMINI_API_KEY)
 
 
 class RecommendationEngine:
     """
-    AI-powered investment recommendation engine using Groq/HuggingFace
+    AI-powered investment recommendation engine using Gemini
     """
     
     def __init__(self):
-        """Initialize the recommendation engine with fallback LLM"""
+        """Initialize the recommendation engine with Gemini model"""
         try:
-            # Initialize with fallback logic
-            self.model = initialize_llm_with_fallback(temperature=0.7, max_tokens=8192)
-            logger.info(f"✅ Recommendation Engine initialized successfully using {ACTIVE_LLM_PROVIDER} (key #{ACTIVE_KEY_INDEX})")
+            # ✅ Using latest fast model
+            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            logger.info("✅ Gemini Recommendation Engine initialized successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize LLM: {e}")
+            logger.error(f"❌ Failed to initialize Gemini: {e}")
             raise
     
     
@@ -151,7 +84,7 @@ class RecommendationEngine:
         portfolio_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Generate personalized investment recommendations using AI
+        Generate personalized investment recommendations using Gemini AI
         
         Args:
             user_profile: User's financial profile including risk tolerance, income, expenses
@@ -167,23 +100,33 @@ class RecommendationEngine:
             # Build the prompt
             prompt = self._build_recommendation_prompt(user_profile, market_data, portfolio_data)
             
+            # ✅ Configure generation with higher token limit
+            generation_config = {
+                "temperature": 0.7,
+                "top_p": 0.95,
+                "top_k": 40,
+                "max_output_tokens": 8192,
+                "response_mime_type": "text/plain",
+            }
+            
             # Generate recommendations with retry logic
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    logger.info(f"🤖 Attempt {attempt + 1}/{max_retries}: Calling LLM API...")
+                    logger.info(f"🤖 Attempt {attempt + 1}/{max_retries}: Calling Gemini API...")
                     
-                    # Call LLM using LangChain interface
-                    from langchain_core.messages import HumanMessage
-                    response = self.model.invoke([HumanMessage(content=prompt)])
+                    response = self.model.generate_content(
+                        prompt,
+                        generation_config=generation_config
+                    )
                     
-                    # Extract and clean JSON from response
-                    response_text = response.content.strip()
+                    # ✅ Extract and clean JSON from response
+                    response_text = response.text.strip()
                     
                     # Remove markdown code blocks if present
                     if response_text.startswith('```'):
                         response_text = response_text[7:]
-                    elif response_text.startswith('```'):
+                    if response_text.startswith('```'):
                         response_text = response_text[3:]
                     if response_text.endswith('```'):
                         response_text = response_text[:-3]
@@ -196,7 +139,7 @@ class RecommendationEngine:
                     # Parse JSON
                     recommendations = json.loads(response_text)
                     
-                    # VALIDATE: Check if response is complete
+                    # ✅ VALIDATE: Check if response is complete
                     required_keys = ['marketSentiment', 'stocks', 'mutualFunds']
                     if all(key in recommendations for key in required_keys):
                         logger.info(f"✅ Successfully generated valid recommendations")
@@ -206,8 +149,7 @@ class RecommendationEngine:
                             'generatedAt': datetime.utcnow().isoformat(),
                             'userRiskProfile': user_profile.get('riskTolerance'),
                             'marketCondition': market_data.get('niftyTrend', 'neutral'),
-                            'modelUsed': ACTIVE_LLM_PROVIDER,
-                            'keyIndex': ACTIVE_KEY_INDEX
+                            'modelUsed': 'gemini-2.0-flash-exp'
                         }
                         
                         return recommendations
@@ -228,6 +170,8 @@ class RecommendationEngine:
                     
                     if attempt < max_retries - 1:
                         logger.info(f"🔄 Retrying with adjusted parameters...")
+                        # Reduce temperature for more deterministic output
+                        generation_config["temperature"] = max(0.1, generation_config["temperature"] - 0.2)
                         continue
                     else:
                         # Last attempt failed, return fallback
@@ -369,7 +313,7 @@ class RecommendationEngine:
         portfolio_data: Optional[Dict[str, Any]]
     ) -> str:
         """
-        Build a comprehensive prompt for AI
+        Build a comprehensive prompt for Gemini AI
         """
         
         # Extract user data
