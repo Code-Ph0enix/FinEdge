@@ -503,6 +503,70 @@ except Exception as e:
 # Initialize tools (LEGACY)
 tools = initialize_tools()
 
+# # Create ReAct / Tool-calling agent (UPDATED for LangChain 1.x)
+# agent_executor = None
+# if react_llm:
+#     try:
+#         prompt_template = get_react_prompt_template()
+
+#         # Build a chat-style prompt if ChatPromptTemplate is available
+#         if ChatPromptTemplate is not None:
+#             # If the returned prompt_template is a PromptTemplate object (legacy), extract text
+#             try:
+#                 # If prompt_template has attribute 'template' it's a PromptTemplate
+#                 prompt_text = prompt_template.template if hasattr(prompt_template, "template") else str(prompt_template)
+#             except Exception:
+#                 prompt_text = str(prompt_template)
+
+#             prompt = ChatPromptTemplate.from_messages([
+#                 ("system", prompt_text),
+#                 ("user", "{input}")
+#             ])
+#         else:
+#             # If ChatPromptTemplate not available, fallback to giving the legacy PromptTemplate directly to agent factory
+#             prompt = prompt_template
+
+#         # Try to build the new tool-calling agent (preferred)
+#         if create_tool_calling_agent is not None:
+#             try:
+#                 # Many 1.x wrappers accept named args (llm, tools, prompt)
+#                 react_agent = create_tool_calling_agent(llm=react_llm, tools=tools, prompt=prompt)
+#             except TypeError:
+#                 # fallback to positional
+#                 react_agent = create_tool_calling_agent(react_llm, tools, prompt)
+#         else:
+#             # If we cannot import the factory, attempt a lower-level construction if AgentExecutor is available.
+#             # However constructing a full agent manually is complex; so we fallback to None with a clear log.
+#             raise ImportError("create_tool_calling_agent not available in this LangChain installation")
+
+#         # Create agent executor (modern configuration) - AgentExecutor should be available from langchain_core.agents
+#         if AgentExecutor is None:
+#             raise ImportError("AgentExecutor is not available in this environment")
+
+#         agent_executor = AgentExecutor(
+#             agent=react_agent,
+#             tools=tools,
+#             verbose=True,
+#             handle_parsing_errors=True,
+#             max_iterations=5,
+#             return_intermediate_steps=True,
+#             early_stopping_method="generate"
+#         )
+
+#         logger.info("Tool-calling agent initialized successfully (LangChain v1.x)")
+
+#     except Exception as e:
+#         logger.error(f"Failed to initialize tool-calling/ReAct agent: {e}")
+#         logger.info("Agent features will be disabled (agent_executor = None) but chat remains available.")
+#         agent_executor = None
+# else:
+#     logger.warning("ReAct LLM not available, agent will not be initialized")
+
+
+
+
+
+
 # Create ReAct / Tool-calling agent (UPDATED for LangChain 1.x)
 agent_executor = None
 if react_llm:
@@ -518,28 +582,67 @@ if react_llm:
             except Exception:
                 prompt_text = str(prompt_template)
 
+            # ✅ FIX: Added placeholder for agent_scratchpad (required in LangChain 1.x)
             prompt = ChatPromptTemplate.from_messages([
                 ("system", prompt_text),
-                ("user", "{input}")
+                ("user", "{input}"),
+                ("placeholder", "{agent_scratchpad}")  # Required for ReAct agent
             ])
         else:
             # If ChatPromptTemplate not available, fallback to giving the legacy PromptTemplate directly to agent factory
             prompt = prompt_template
 
-        # Try to build the new tool-calling agent (preferred)
-        if create_tool_calling_agent is not None:
+        # ✅ FIX: Try multiple agent creation methods for LangChain 1.x compatibility
+        react_agent = None
+        
+        # Method 1: Try create_react_agent (standard in LangChain 1.x)
+        try:
+            from langchain.agents import create_react_agent
+            react_agent = create_react_agent(
+                llm=react_llm,
+                tools=tools,
+                prompt=prompt
+            )
+            logger.info("✅ Created ReAct agent using create_react_agent")
+        except ImportError:
+            logger.warning("create_react_agent not available, trying alternatives...")
+        except Exception as e:
+            logger.warning(f"create_react_agent failed: {e}, trying alternatives...")
+        
+        # Method 2: Try create_tool_calling_agent (if available)
+        if react_agent is None and create_tool_calling_agent is not None:
             try:
-                # Many 1.x wrappers accept named args (llm, tools, prompt)
                 react_agent = create_tool_calling_agent(llm=react_llm, tools=tools, prompt=prompt)
+                logger.info("✅ Created agent using create_tool_calling_agent")
             except TypeError:
-                # fallback to positional
-                react_agent = create_tool_calling_agent(react_llm, tools, prompt)
-        else:
-            # If we cannot import the factory, attempt a lower-level construction if AgentExecutor is available.
-            # However constructing a full agent manually is complex; so we fallback to None with a clear log.
-            raise ImportError("create_tool_calling_agent not available in this LangChain installation")
+                try:
+                    react_agent = create_tool_calling_agent(react_llm, tools, prompt)
+                    logger.info("✅ Created agent using create_tool_calling_agent (positional args)")
+                except Exception as e:
+                    logger.warning(f"create_tool_calling_agent failed: {e}")
+            except Exception as e:
+                logger.warning(f"create_tool_calling_agent failed: {e}")
+        
+        # Method 3: Try create_structured_chat_agent (fallback)
+        if react_agent is None:
+            try:
+                from langchain.agents import create_structured_chat_agent
+                react_agent = create_structured_chat_agent(
+                    llm=react_llm,
+                    tools=tools,
+                    prompt=prompt
+                )
+                logger.info("✅ Created agent using create_structured_chat_agent")
+            except ImportError:
+                logger.warning("create_structured_chat_agent not available")
+            except Exception as e:
+                logger.warning(f"create_structured_chat_agent failed: {e}")
+        
+        # If all methods failed, raise error
+        if react_agent is None:
+            raise ImportError("All agent creation methods failed. LangChain installation may be incomplete.")
 
-        # Create agent executor (modern configuration) - AgentExecutor should be available from langchain_core.agents
+        # Create agent executor (modern configuration)
         if AgentExecutor is None:
             raise ImportError("AgentExecutor is not available in this environment")
 
@@ -553,7 +656,7 @@ if react_llm:
             early_stopping_method="generate"
         )
 
-        logger.info("Tool-calling agent initialized successfully (LangChain v1.x)")
+        logger.info("✅ Tool-calling agent initialized successfully (LangChain v1.x)")
 
     except Exception as e:
         logger.error(f"Failed to initialize tool-calling/ReAct agent: {e}")
@@ -561,6 +664,7 @@ if react_llm:
         agent_executor = None
 else:
     logger.warning("ReAct LLM not available, agent will not be initialized")
+
 
 
 # ==================== CORE ADVISOR FUNCTIONS (ENHANCED) ====================
