@@ -1,9 +1,22 @@
+# import datetime
+# from langchain.agents import tool
+# from dotenv import load_dotenv
+# import os
+
+# load_dotenv()
+# ✅ FIXED: Import tool from correct location for LangChain 1.x
 import datetime
-from langchain.agents import tool
+try:
+    from langchain_core.tools import tool
+except ImportError:
+    # Fallback for older versions
+    from langchain.agents import tool
+
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
+
 
 # ======================================== BASIC TOOLS ========================================
 
