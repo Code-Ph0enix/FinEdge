@@ -509,51 +509,195 @@ tools = initialize_tools()
 # CHANGE THIS PART IF DEPLOY FAILS
 # ===============================================================================================================================
 
-# Create ReAct / Tool-calling agent (LangChain 1.x compatible)
+# Create ReAct / Tool-calling agent (robust & backward-compatible)
 agent_executor = None
 
 if react_llm:
     try:
-        # Get the ReAct-style prompt text
         prompt_template = get_react_prompt_template()
 
-        # Build ChatPromptTemplate (preferred IC for LangChain 1.x)
+        # Build ChatPromptTemplate if available
         if ChatPromptTemplate is not None:
             try:
                 prompt_text = prompt_template.template if hasattr(prompt_template, "template") else str(prompt_template)
             except Exception:
                 prompt_text = str(prompt_template)
 
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", prompt_text),
-                ("user", "{input}"),
-                ("placeholder", "{agent_scratchpad}")   # Required for ReAct scratchpad
-            ])
+            try:
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", prompt_text),
+                    ("user", "{input}"),
+                    ("placeholder", "{agent_scratchpad}")
+                ])
+            except Exception:
+                # If ChatPromptTemplate.from_messages signature differs, fallback to raw prompt text
+                prompt = prompt_text
         else:
             prompt = prompt_template
 
-        from langchain.agents import initialize_agent, AgentType
+        react_agent = None
+        created_by = None
 
-        # 🚀 THE ONLY OFFICIAL & WORKING ReAct CREATION METHOD IN LANGCHAIN 1.x
-        react_agent = initialize_agent(
-            tools=tools,
-            llm=react_llm,
-            agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-            verbose=True,
-            handle_parsing_errors=True,
-            max_iterations=5,
-            early_stopping_method="generate",
-            agent_kwargs={ "system_message": prompt }
-        )
+        # --- Attempt 1: initialize_agent from common locations ---
+        initialize_agent_fn = None
+        for mod_path in ("langchain.agents", "langchain_core.agents", "langchain.agents.agent"):
+            try:
+                mod = __import__(mod_path, fromlist=["initialize_agent"])
+                initialize_agent_fn = getattr(mod, "initialize_agent")
+                if initialize_agent_fn:
+                    created_by = f"{mod_path}.initialize_agent"
+                    break
+            except Exception:
+                continue
 
-        agent_executor = react_agent
-        logger.info("✅ ReAct agent initialized using initialize_agent (ZERO_SHOT_REACT_DESCRIPTION)")
+        if initialize_agent_fn:
+            try:
+                # prefer AgentType from whichever module provides it
+                AgentTypeObj = None
+                for mod_path in ("langchain.agents", "langchain_core.agents", "langchain.agents.agent"):
+                    try:
+                        mod = __import__(mod_path, fromlist=["AgentType"])
+                        AgentTypeObj = getattr(mod, "AgentType")
+                        break
+                    except Exception:
+                        continue
+
+                if AgentTypeObj is not None:
+                    react_agent = initialize_agent_fn(
+                        tools=tools,
+                        llm=react_llm,
+                        agent=AgentTypeObj.ZERO_SHOT_REACT_DESCRIPTION,
+                        verbose=True,
+                        handle_parsing_errors=True,
+                        max_iterations=5,
+                        early_stopping_method="generate",
+                        agent_kwargs={"system_message": prompt} if isinstance(prompt, str) else {"system_message": str(prompt)}
+                    )
+                else:
+                    # If AgentType not found, call initialize_agent with common kwargs and hope for the best
+                    react_agent = initialize_agent_fn(
+                        tools=tools,
+                        llm=react_llm,
+                        verbose=True,
+                        handle_parsing_errors=True,
+                        max_iterations=5,
+                    )
+                logger.info(f"✅ Created ReAct agent using {created_by}")
+            except Exception as e:
+                logger.warning(f"{created_by} call failed: {e}")
+                react_agent = None
+
+        # --- Attempt 2: try legacy or alternate helpers (many names in different versions) ---
+        if react_agent is None:
+            for try_name in ("create_react_agent", "create_tool_calling_agent", "create_structured_chat_agent"):
+                try:
+                    for mod_path in ("langchain.agents", "langchain_experimental.agents", "langchain.agents.agent", "langchain.experimental.agents"):
+                        try:
+                            mod = __import__(mod_path, fromlist=[try_name])
+                            fn = getattr(mod, try_name)
+                            # try both keyword and positional call variants
+                            try:
+                                react_agent = fn(llm=react_llm, tools=tools, prompt=prompt)
+                            except TypeError:
+                                react_agent = fn(react_llm, tools, prompt)
+                            created_by = f"{mod_path}.{try_name}"
+                            logger.info(f"✅ Created ReAct agent using {created_by}")
+                            break
+                        except Exception:
+                            continue
+                    if react_agent:
+                        break
+                except Exception:
+                    continue
+
+        # --- If a react_agent object was created, try to wrap / adapt it to be an executor ---
+        if react_agent is not None:
+            # Many LC versions return an AgentExecutor-like object directly; use it as-is.
+            agent_executor = react_agent
+            logger.info("✅ Tool-calling agent initialized successfully (using detected agent object)")
+        else:
+            # --- FINAL FALLBACK: Build a small, safe tool-calling adapter that won't crash the app ---
+            # This fallback provides minimal tool-calling by matching tool names in the user query.
+            logger.warning("All agent factories failed. Falling back to minimal tool-calling adapter.")
+
+            # Build a name -> callable mapping from tools (they might be bare functions or Tool-like)
+            tool_map = {}
+            for t in tools or []:
+                try:
+                    # If it's a LangChain Tool object with .name and .run
+                    name = getattr(t, "name", None) or getattr(t, "__name__", None) or str(t)
+                    call_fn = getattr(t, "run", None) or t
+                    tool_map[name.lower()] = call_fn
+                except Exception:
+                    continue
+
+            class MinimalToolAgent:
+                """
+                A minimal adapter that implements .invoke and .run so existing call-sites work.
+                Heuristic behavior:
+                - If query mentions a tool name, call that tool with the whole query (or extracted argument).
+                - Otherwise, ask the LLM (react_llm) to answer directly (no tools).
+                """
+                def __init__(self, llm, tools_map, default_prompt=None):
+                    self.llm = llm
+                    self.tools_map = tools_map
+                    self.default_prompt = default_prompt
+
+                def _find_tool_for_query(self, query_text: str):
+                    q = query_text.lower()
+                    # exact name match or contained name (prefers longer names)
+                    best = None
+                    for name in sorted(self.tools_map.keys(), key=lambda x: -len(x)):
+                        if name in q:
+                            best = name
+                            break
+                    return best
+
+                def invoke(self, payload):
+                    # accept {'input': "..."} or a list of messages (compat)
+                    try:
+                        if isinstance(payload, dict) and "input" in payload:
+                            query_text = payload["input"]
+                        elif isinstance(payload, (list, tuple)):
+                            # try to convert list messages to a single text
+                            query_text = " ".join([m.content if hasattr(m, "content") else str(m) for m in payload])
+                        else:
+                            query_text = str(payload)
+                    except Exception:
+                        query_text = str(payload)
+
+                    tool_name = self._find_tool_for_query(query_text)
+                    if tool_name:
+                        fn = self.tools_map.get(tool_name)
+                        try:
+                            # Call tool function; many tools accept a single string argument
+                            result = fn(query_text)
+                        except TypeError:
+                            try:
+                                result = fn(query_text, None)
+                            except Exception as e:
+                                result = f"Tool call failed: {e}"
+                        return {"output": str(result), "intermediate_steps": [(tool_name, str(result))]}
+                    else:
+                        # fallback: ask the LLM
+                        try:
+                            from langchain_core.messages import HumanMessage
+                            resp = self.llm.invoke([HumanMessage(content=query_text)])
+                            text = getattr(resp, "content", str(resp))
+                            return {"output": str(text), "intermediate_steps": []}
+                        except Exception as e:
+                            return {"output": f"LLM fallback failed: {e}", "intermediate_steps": []}
+
+                def run(self, query_text: str):
+                    return self.invoke({"input": query_text}).get("output", "")
+
+            agent_executor = MinimalToolAgent(react_llm, tool_map, default_prompt=prompt)
+            logger.info("✅ Minimal tool-calling adapter initialized as agent_executor (fallback)")
 
     except Exception as e:
         logger.error(f"Failed to initialize tool-calling/ReAct agent: {e}")
         logger.info("Agent features will be disabled (agent_executor = None) but chat remains available.")
         agent_executor = None
-
 else:
     logger.warning("ReAct LLM not available, agent will not be initialized")
 

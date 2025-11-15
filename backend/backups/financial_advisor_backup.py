@@ -1,6 +1,75 @@
 # ===============================================================================================================================
 # FUNCTION ATTEMPT - 1
 # ===============================================================================================================================
+
+# # Create ReAct / Tool-calling agent (LangChain 1.x compatible)
+# agent_executor = None
+
+# if react_llm:
+#     try:
+#         # Get the ReAct-style prompt text
+#         prompt_template = get_react_prompt_template()
+
+#         # Build ChatPromptTemplate (preferred IC for LangChain 1.x)
+#         if ChatPromptTemplate is not None:
+#             try:
+#                 prompt_text = prompt_template.template if hasattr(prompt_template, "template") else str(prompt_template)
+#             except Exception:
+#                 prompt_text = str(prompt_template)
+
+#             prompt = ChatPromptTemplate.from_messages([
+#                 ("system", prompt_text),
+#                 ("user", "{input}"),
+#                 ("placeholder", "{agent_scratchpad}")   # Required for ReAct scratchpad
+#             ])
+#         else:
+#             prompt = prompt_template
+
+#         from langchain.agents import initialize_agent, AgentType
+
+#         # 🚀 THE ONLY OFFICIAL & WORKING ReAct CREATION METHOD IN LANGCHAIN 1.x
+#         react_agent = initialize_agent(
+#             tools=tools,
+#             llm=react_llm,
+#             agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+#             verbose=True,
+#             handle_parsing_errors=True,
+#             max_iterations=5,
+#             early_stopping_method="generate",
+#             agent_kwargs={ "system_message": prompt }
+#         )
+
+#         agent_executor = react_agent
+#         logger.info("✅ ReAct agent initialized using initialize_agent (ZERO_SHOT_REACT_DESCRIPTION)")
+
+#     except Exception as e:
+#         logger.error(f"Failed to initialize tool-calling/ReAct agent: {e}")
+#         logger.info("Agent features will be disabled (agent_executor = None) but chat remains available.")
+#         agent_executor = None
+
+# else:
+#     logger.warning("ReAct LLM not available, agent will not be initialized")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ===============================================================================================================================
+# FUNCTION ATTEMPT - 2
+# ===============================================================================================================================
+
 # # Create ReAct / Tool-calling agent (UPDATED for LangChain 1.x)
 # agent_executor = None
 # if react_llm:
