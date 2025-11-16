@@ -34,7 +34,9 @@ except Exception:
         logger.warning("langchain_huggingface not available")
         HF_AVAILABLE = False
 
+# ==================================================================================================================================================================================================
 # ==================== API KEY / provider fallback configuration ====================
+# =================================================================================================================================================================================================
 GROQ_API_KEYS = [
     os.getenv("GROQ_API_KEY_1"),
     os.getenv("GROQ_API_KEY_2"),
@@ -114,7 +116,9 @@ def initialize_llm_with_fallback(temperature: float = 0.7, max_tokens: int = 819
     raise ValueError("All LLM providers failed to initialize. Check GROQ_API_KEY_* and HF_TOKEN_* env vars.")
 
 
+# ==================================================================================================================================================================================================
 # ----------------------------- JSON extraction & cleaning helpers -----------------------------
+# =================================================================================================================================================================================================
 def _strip_code_fences(text: str) -> str:
     """
     Remove markdown code fences and leading/trailing backticks.
@@ -232,8 +236,10 @@ def extract_and_fix_json(text: str) -> Tuple[Optional[dict], str]:
 
     return None, candidate
 
-
+# ==================================================================================================================================================================================================
 # ----------------------------- Recommendation engine -----------------------------
+# ==================================================================================================================================================================================================
+
 class RecommendationEngine:
     def __init__(self, temperature: float = 0.7, max_tokens: int = 8192, model_override: str = None):
         try:
@@ -253,10 +259,243 @@ class RecommendationEngine:
         # Quick schema check keys
         self._required_keys = ["marketSentiment", "stocks", "mutualFunds"]
 
-    def _build_recommendation_prompt(self, user_profile: Dict[str, Any], market_data: Dict[str, Any], portfolio_data: Optional[Dict[str, Any]]) -> str:
+    # def _build_recommendation_prompt(self, user_profile: Dict[str, Any], market_data: Dict[str, Any], portfolio_data: Optional[Dict[str, Any]]) -> str:
+    #     """
+    #     Build a robust instruction + example JSON skeleton to bias the model toward valid JSON output.
+    #     """
+    #     risk_tolerance = user_profile.get("riskTolerance", "moderate")
+    #     monthly_income = user_profile.get("monthlyIncome", 0)
+    #     monthly_expenses = user_profile.get("monthlyExpenses", 0)
+    #     monthly_savings = max(0, monthly_income - monthly_expenses)
+    #     financial_goals = user_profile.get("financialGoals", [])
+    #     age = user_profile.get("age", 30)
+
+    #     nifty_trend = market_data.get("niftyTrend", "neutral")
+    #     fii_flow = market_data.get("fiiFlow", 0)
+    #     top_sectors = market_data.get("topSectors", ["IT", "Banking", "Pharma"])
+
+    #     # Example skeleton (small) — this nudges model to produce same shape
+    #     skeleton = {
+    #         "marketSentiment": {
+    #             "trend": "Neutral",
+    #             "fiiFlow": f"{fii_flow}",
+    #             "riskLevel": "Moderate",
+    #             "summary": "Short (1-2 sentences) market overview"
+    #         },
+    #         "stocks": [
+    #             {
+    #                 "symbol": "HDFCBANK",
+    #                 "name": "HDFC Bank Ltd.",
+    #                 "currentPrice": 0,
+    #                 "targetPrice": 0,
+    #                 "expectedReturn": "0-0%",
+    #                 "riskLevel": "Low/Moderate/High",
+    #                 "sector": "Banking",
+    #                 "recommendedAllocation": 0,
+    #                 "monthlyInvestment": 0,
+    #                 "reasoning": "Why this matches the user",
+    #                 "keyMetrics": {"pe": 0.0, "marketCap": "Large Cap", "dividend": "0%"}
+    #             }
+    #         ],
+    #         "mutualFunds": [],
+    #         "fixedDeposits": [],
+    #         "actionPlan": []
+    #     }
+
+    #     prompt_parts = [
+    #         self.json_prefix,
+    #         "",
+    #         "CLIENT PROFILE:",
+    #         f"- Risk Tolerance: {risk_tolerance}",
+    #         f"- Monthly Savings Capacity: {monthly_savings}",
+    #         f"- Age: {age}",
+    #         f"- Financial Goals: {', '.join(financial_goals) if financial_goals else 'Wealth creation'}",
+    #         "",
+    #         "CURRENT MARKET CONDITIONS (India):",
+    #         f"- NIFTY 50 Trend: {nifty_trend}",
+    #         f"- FII Flow (Cr): {fii_flow}",
+    #         f"- Top Sectors: {', '.join(top_sectors)}",
+    #         "",
+    #         "TASK: Produce personalized investment recommendations in VALID JSON matching the example skeleton below. "
+    #         "Only include Indian stocks (NSE/BSE). Do not include any commentary or text outside the JSON.",
+    #         "",
+    #         "JSON SKELETON EXAMPLE (use this shape, but populate with realistic values):",
+    #         json.dumps(skeleton, indent=2),
+    #         "",
+    #         "RETURN the JSON now."
+    #     ]
+
+    #     return "\n".join(prompt_parts)
+
+    # def _validate_and_fill(self, recommendations: Dict[str, Any], user_profile: Dict[str, Any], market_data: Dict[str, Any]) -> Dict[str, Any]:
+    #     """
+    #     Validate required keys and fill defaults if missing. Adds metadata.
+    #     """
+    #     if "marketSentiment" not in recommendations:
+    #         recommendations["marketSentiment"] = {
+    #             "trend": market_data.get("niftyTrend", "Neutral"),
+    #             "fiiFlow": str(market_data.get("fiiFlow", 0)),
+    #             "riskLevel": "Moderate",
+    #             "summary": "Market data not available; defaults applied."
+    #         }
+    #     if "stocks" not in recommendations or not isinstance(recommendations["stocks"], list):
+    #         recommendations["stocks"] = []
+    #     if "mutualFunds" not in recommendations or not isinstance(recommendations["mutualFunds"], list):
+    #         recommendations["mutualFunds"] = []
+
+    #     # Ensure numeric fields are numeric and not strings with commas or ₹
+    #     def _normalize_number(v):
+    #         if isinstance(v, (int, float)):
+    #             return v
+    #         if isinstance(v, str):
+    #             s = v.replace(",", "").replace("₹", "").strip()
+    #             try:
+    #                 if "." in s:
+    #                     return float(s)
+    #                 return int(s)
+    #             except Exception:
+    #                 return v
+    #         return v
+
+    #     for s in recommendations.get("stocks", []):
+    #         s["currentPrice"] = _normalize_number(s.get("currentPrice", 0))
+    #         s["targetPrice"] = _normalize_number(s.get("targetPrice", 0))
+    #         s["recommendedAllocation"] = _normalize_number(s.get("recommendedAllocation", 0))
+    #         s["monthlyInvestment"] = _normalize_number(s.get("monthlyInvestment", 0))
+
+    #     # Add metadata
+    #     recommendations.setdefault("metadata", {})
+    #     recommendations["metadata"].update({
+    #         "generatedAt": datetime.utcnow().isoformat(),
+    #         "usedProvider": ACTIVE_LLM_PROVIDER,
+    #         "keyIndex": ACTIVE_KEY_INDEX
+    #     })
+    #     return recommendations
+
+    # def _get_fallback_recommendations(self, user_profile: Dict[str, Any], market_data: Dict[str, Any]) -> Dict[str, Any]:
+    #     """
+    #     Conservative fallback recommendations (kept small and safe).
+    #     """
+    #     logger.warning("⚠️ Using fallback recommendations")
+    #     monthly_savings = max(0, user_profile.get("monthlySavings", user_profile.get("monthlyIncome", 0) - user_profile.get("monthlyExpenses", 0)))
+    #     risk = user_profile.get("riskTolerance", "moderate").lower()
+
+    #     return {
+    #         "marketSentiment": {
+    #             "trend": market_data.get("niftyTrend", "Neutral"),
+    #             "fiiFlow": str(market_data.get("fiiFlow", 0)),
+    #             "riskLevel": "Moderate",
+    #             "summary": "Fallback conservative guidance due to temporary AI failure."
+    #         },
+    #         "stocks": [
+    #             {
+    #                 "symbol": "HDFCBANK",
+    #                 "name": "HDFC Bank Ltd.",
+    #                 "currentPrice": 1650.0,
+    #                 "targetPrice": 1800.0,
+    #                 "expectedReturn": "8-12%",
+    #                 "riskLevel": "Low",
+    #                 "sector": "Banking",
+    #                 "recommendedAllocation": 20,
+    #                 "monthlyInvestment": int(monthly_savings * 0.15),
+    #                 "reasoning": "Large-cap defensive allocation for stability.",
+    #                 "keyMetrics": {"pe": 18.5, "marketCap": "Large Cap", "dividend": "1.2%"}
+    #             }
+    #         ],
+    #         "mutualFunds": [
+    #             {
+    #                 "name": "SBI Bluechip Fund",
+    #                 "category": "Large Cap",
+    #                 "nav": 65.50,
+    #                 "returns1Y": 12.5,
+    #                 "returns3Y": 14.0,
+    #                 "returns5Y": 13.5,
+    #                 "riskLevel": "Low",
+    #                 "recommendedAllocation": 30,
+    #                 "monthlyInvestment": int(monthly_savings * 0.30),
+    #                 "reasoning": "Core large-cap equity exposure via SIP."
+    #             }
+    #         ],
+    #         "fixedDeposits": [],
+    #         "actionPlan": [
+    #             "Maintain emergency fund (6 months expenses)",
+    #             "Start SIPs into recommended mutual funds",
+    #             "Review allocation yearly"
+    #         ],
+    #         "metadata": {
+    #             "generatedAt": datetime.utcnow().isoformat(),
+    #             "source": "fallback"
+    #         }
+    #     }
+
+    # def generate_recommendations(self, user_profile: Dict[str, Any], market_data: Dict[str, Any], portfolio_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    #     """
+    #     Public method: generate recommendations with retries and robust JSON extraction.
+    #     Returns parsed recommendations or fallback if all else fails.
+    #     """
+    #     if not self.model:
+    #         logger.error("LLM model not initialized")
+    #         return self._get_fallback_recommendations(user_profile, market_data)
+
+    #     prompt = self._build_recommendation_prompt(user_profile, market_data, portfolio_data)
+
+    #     max_retries = 3
+    #     last_candidate_text = ""
+    #     for attempt in range(1, max_retries + 1):
+    #         try:
+    #             logger.info(f"🤖 Attempt {attempt}/{max_retries}: Calling LLM API...")
+    #             from langchain_core.messages import HumanMessage
+    #             response = self.model.invoke([HumanMessage(content=prompt)])
+    #             raw_text = getattr(response, "content", "") or str(response)
+    #             raw_text = raw_text.strip()
+    #             logger.info(f"📝 Received response (first 300 chars): {raw_text[:300]!s}")
+
+    #             # Extract and try to parse JSON
+    #             parsed, used_text = extract_and_fix_json(raw_text)
+    #             last_candidate_text = used_text
+
+    #             if parsed is not None:
+    #                 # Validate and return
+    #                 parsed = self._validate_and_fill(parsed, user_profile, market_data)
+    #                 parsed["metadata"]["parsedFromModel"] = True
+    #                 logger.info("✅ Successfully parsed and validated model output")
+    #                 return parsed
+    #             else:
+    #                 logger.warning("⚠️ Could not parse JSON from model output")
+    #                 # If not last attempt, slightly adjust prompt nudges
+    #                 if attempt < max_retries:
+    #                     logger.info("🔄 Retrying with stronger JSON-only instruction")
+    #                     prompt = self.json_prefix + "\n\n" + prompt
+    #                     continue
+    #                 else:
+    #                     logger.error("❌ All retries exhausted; returning fallback recommendations")
+    #                     fallback = self._get_fallback_recommendations(user_profile, market_data)
+    #                     fallback["metadata"]["parsedFromModel"] = False
+    #                     fallback["metadata"]["lastModelAttempt"] = last_candidate_text[:2000]
+    #                     return fallback
+
+    #         except Exception as e:
+    #             logger.exception(f"Error while generating recommendations (attempt {attempt}): {e}")
+    #             if attempt >= max_retries:
+    #                 fallback = self._get_fallback_recommendations(user_profile, market_data)
+    #                 fallback["metadata"]["parsedFromModel"] = False
+    #                 fallback["metadata"]["error"] = str(e)
+    #                 return fallback
+    #             # else continue retrying
+
+    #     # Should not reach here; return fallback
+    #     return self._get_fallback_recommendations(user_profile, market_data)
+
+# ===================================================================================================================================================================================================
+# THIS IS THE UPDATED CODE, ABOVE IS THE OLDER CODE, JUST KEPT FOR REFERENCE
+# ===================================================================================================================================================================================================
+
+    def _build_recommendation_prompt(self,user_profile: Dict[str, Any],market_data: Dict[str, Any],portfolio_data: Optional[Dict[str, Any]]) -> str:
         """
-        Build a robust instruction + example JSON skeleton to bias the model toward valid JSON output.
+        Build a robust instruction + example JSON skeleton to bias the model
+        toward valid output matching the full expected schema.
         """
+    
         risk_tolerance = user_profile.get("riskTolerance", "moderate")
         monthly_income = user_profile.get("monthlyIncome", 0)
         monthly_expenses = user_profile.get("monthlyExpenses", 0)
@@ -268,7 +507,7 @@ class RecommendationEngine:
         fii_flow = market_data.get("fiiFlow", 0)
         top_sectors = market_data.get("topSectors", ["IT", "Banking", "Pharma"])
 
-        # Example skeleton (small) — this nudges model to produce same shape
+        # FULL JSON SKELETON — Matches frontend structure
         skeleton = {
             "marketSentiment": {
                 "trend": "Neutral",
@@ -276,23 +515,20 @@ class RecommendationEngine:
                 "riskLevel": "Moderate",
                 "summary": "Short (1-2 sentences) market overview"
             },
-            "stocks": [
-                {
-                    "symbol": "HDFCBANK",
-                    "name": "HDFC Bank Ltd.",
-                    "currentPrice": 0,
-                    "targetPrice": 0,
-                    "expectedReturn": "0-0%",
-                    "riskLevel": "Low/Moderate/High",
-                    "sector": "Banking",
-                    "recommendedAllocation": 0,
-                    "monthlyInvestment": 0,
-                    "reasoning": "Why this matches the user",
-                    "keyMetrics": {"pe": 0.0, "marketCap": "Large Cap", "dividend": "0%"}
-                }
-            ],
+            "stocks": [],
             "mutualFunds": [],
             "fixedDeposits": [],
+            "equityFunds": [],
+            "debtFunds": [],
+            "hybridFunds": [],
+            "lowRiskStocks": [],
+            "moderateRiskStocks": [],
+            "highRiskStocks": [],
+            "bonds": [],
+            "realEstate": [],
+            "gold": [],
+            "etfs": [],
+            "sips": [],
             "actionPlan": []
         }
 
@@ -310,47 +546,53 @@ class RecommendationEngine:
             f"- FII Flow (Cr): {fii_flow}",
             f"- Top Sectors: {', '.join(top_sectors)}",
             "",
-            "TASK: Produce personalized investment recommendations in VALID JSON matching the example skeleton below. "
-            "Only include Indian stocks (NSE/BSE). Do not include any commentary or text outside the JSON.",
+            "TASK:",
+            "Produce detailed investment recommendations in VALID JSON ONLY. "
+            "Do not include commentary or markdown. Must strictly follow the JSON skeleton.",
             "",
-            "JSON SKELETON EXAMPLE (use this shape, but populate with realistic values):",
+            "JSON SKELETON (MATCH THIS EXACT STRUCTURE):",
             json.dumps(skeleton, indent=2),
             "",
-            "RETURN the JSON now."
-        ]
-
+            "RETURN ONLY THE JSON."]
+        
         return "\n".join(prompt_parts)
-
-    def _validate_and_fill(self, recommendations: Dict[str, Any], user_profile: Dict[str, Any], market_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Validate required keys and fill defaults if missing. Adds metadata.
-        """
+    
+    def _validate_and_fill(self,recommendations: Dict[str, Any],user_profile: Dict[str, Any],market_data: Dict[str, Any]) -> Dict[str, Any]:
+        # Ensure marketSentiment
         if "marketSentiment" not in recommendations:
             recommendations["marketSentiment"] = {
                 "trend": market_data.get("niftyTrend", "Neutral"),
                 "fiiFlow": str(market_data.get("fiiFlow", 0)),
                 "riskLevel": "Moderate",
-                "summary": "Market data not available; defaults applied."
+                "summary": "Market data unavailable; defaults used."
             }
-        if "stocks" not in recommendations or not isinstance(recommendations["stocks"], list):
-            recommendations["stocks"] = []
-        if "mutualFunds" not in recommendations or not isinstance(recommendations["mutualFunds"], list):
-            recommendations["mutualFunds"] = []
 
-        # Ensure numeric fields are numeric and not strings with commas or ₹
+        # All arrays that must exist
+        array_fields = [
+            "stocks", "mutualFunds", "fixedDeposits",
+            "equityFunds", "debtFunds", "hybridFunds",
+            "lowRiskStocks", "moderateRiskStocks", "highRiskStocks",
+            "bonds", "realEstate", "gold", "etfs", "sips",
+            "actionPlan"
+        ]
+
+        for key in array_fields:
+            if key not in recommendations or not isinstance(recommendations[key], list):
+                recommendations[key] = []
+
+        # Normalizer
         def _normalize_number(v):
             if isinstance(v, (int, float)):
                 return v
             if isinstance(v, str):
                 s = v.replace(",", "").replace("₹", "").strip()
                 try:
-                    if "." in s:
-                        return float(s)
-                    return int(s)
-                except Exception:
+                    return float(s) if "." in s else int(s)
+                except:
                     return v
             return v
 
+        # Normalize numeric fields for STOCKS only
         for s in recommendations.get("stocks", []):
             s["currentPrice"] = _normalize_number(s.get("currentPrice", 0))
             s["targetPrice"] = _normalize_number(s.get("targetPrice", 0))
@@ -365,22 +607,29 @@ class RecommendationEngine:
             "keyIndex": ACTIVE_KEY_INDEX
         })
         return recommendations
-
+    
     def _get_fallback_recommendations(self, user_profile: Dict[str, Any], market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Conservative fallback recommendations (kept small and safe).
+        Robust fallback with COMPLETE JSON structure so frontend never breaks.
         """
         logger.warning("⚠️ Using fallback recommendations")
-        monthly_savings = max(0, user_profile.get("monthlySavings", user_profile.get("monthlyIncome", 0) - user_profile.get("monthlyExpenses", 0)))
-        risk = user_profile.get("riskTolerance", "moderate").lower()
 
-        return {
+        monthly_savings = max(
+            0,
+            user_profile.get(
+                "monthlySavings",
+                user_profile.get("monthlyIncome", 0) - user_profile.get("monthlyExpenses", 0)
+            )
+        )
+
+        rec = {
             "marketSentiment": {
                 "trend": market_data.get("niftyTrend", "Neutral"),
                 "fiiFlow": str(market_data.get("fiiFlow", 0)),
                 "riskLevel": "Moderate",
-                "summary": "Fallback conservative guidance due to temporary AI failure."
+                "summary": "Fallback conservative guidance due to AI failure."
             },
+
             "stocks": [
                 {
                     "symbol": "HDFCBANK",
@@ -392,10 +641,11 @@ class RecommendationEngine:
                     "sector": "Banking",
                     "recommendedAllocation": 20,
                     "monthlyInvestment": int(monthly_savings * 0.15),
-                    "reasoning": "Large-cap defensive allocation for stability.",
+                    "reasoning": "Large-cap stability for conservative fallback.",
                     "keyMetrics": {"pe": 18.5, "marketCap": "Large Cap", "dividend": "1.2%"}
                 }
             ],
+
             "mutualFunds": [
                 {
                     "name": "SBI Bluechip Fund",
@@ -407,81 +657,47 @@ class RecommendationEngine:
                     "riskLevel": "Low",
                     "recommendedAllocation": 30,
                     "monthlyInvestment": int(monthly_savings * 0.30),
-                    "reasoning": "Core large-cap equity exposure via SIP."
+                    "reasoning": "Stable equity exposure for fallback."
                 }
             ],
-            "fixedDeposits": [],
-            "actionPlan": [
-                "Maintain emergency fund (6 months expenses)",
-                "Start SIPs into recommended mutual funds",
-                "Review allocation yearly"
+
+            "fixedDeposits": [
+                {
+                    "bank": "SBI Fixed Deposit",
+                    "tenure": "1 Year",
+                    "interestRate": 6.5,
+                    "minAmount": 10000,
+                    "recommendedAllocation": 20,
+                    "monthlyInvestment": int(monthly_savings * 0.20),
+                    "reasoning": "Safe and guaranteed returns.",
+                    "features": ["Guaranteed returns", "Capital protection"]
+                }
             ],
+
+            "actionPlan": [
+                "Maintain emergency fund (6 months).",
+                "Start SIPs in recommended mutual funds.",
+                "Review and rebalance anytime market changes."
+            ],
+
             "metadata": {
                 "generatedAt": datetime.utcnow().isoformat(),
                 "source": "fallback"
             }
         }
 
-    def generate_recommendations(self, user_profile: Dict[str, Any], market_data: Dict[str, Any], portfolio_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        Public method: generate recommendations with retries and robust JSON extraction.
-        Returns parsed recommendations or fallback if all else fails.
-        """
-        if not self.model:
-            logger.error("LLM model not initialized")
-            return self._get_fallback_recommendations(user_profile, market_data)
+        # Ensure all frontend-required keys exist
+        for key in [
+            "equityFunds", "debtFunds", "hybridFunds",
+            "lowRiskStocks", "moderateRiskStocks", "highRiskStocks",
+            "bonds", "realEstate", "gold", "etfs", "sips"
+        ]:
+            rec[key] = []
+        return rec
 
-        prompt = self._build_recommendation_prompt(user_profile, market_data, portfolio_data)
-
-        max_retries = 3
-        last_candidate_text = ""
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.info(f"🤖 Attempt {attempt}/{max_retries}: Calling LLM API...")
-                from langchain_core.messages import HumanMessage
-                response = self.model.invoke([HumanMessage(content=prompt)])
-                raw_text = getattr(response, "content", "") or str(response)
-                raw_text = raw_text.strip()
-                logger.info(f"📝 Received response (first 300 chars): {raw_text[:300]!s}")
-
-                # Extract and try to parse JSON
-                parsed, used_text = extract_and_fix_json(raw_text)
-                last_candidate_text = used_text
-
-                if parsed is not None:
-                    # Validate and return
-                    parsed = self._validate_and_fill(parsed, user_profile, market_data)
-                    parsed["metadata"]["parsedFromModel"] = True
-                    logger.info("✅ Successfully parsed and validated model output")
-                    return parsed
-                else:
-                    logger.warning("⚠️ Could not parse JSON from model output")
-                    # If not last attempt, slightly adjust prompt nudges
-                    if attempt < max_retries:
-                        logger.info("🔄 Retrying with stronger JSON-only instruction")
-                        prompt = self.json_prefix + "\n\n" + prompt
-                        continue
-                    else:
-                        logger.error("❌ All retries exhausted; returning fallback recommendations")
-                        fallback = self._get_fallback_recommendations(user_profile, market_data)
-                        fallback["metadata"]["parsedFromModel"] = False
-                        fallback["metadata"]["lastModelAttempt"] = last_candidate_text[:2000]
-                        return fallback
-
-            except Exception as e:
-                logger.exception(f"Error while generating recommendations (attempt {attempt}): {e}")
-                if attempt >= max_retries:
-                    fallback = self._get_fallback_recommendations(user_profile, market_data)
-                    fallback["metadata"]["parsedFromModel"] = False
-                    fallback["metadata"]["error"] = str(e)
-                    return fallback
-                # else continue retrying
-
-        # Should not reach here; return fallback
-        return self._get_fallback_recommendations(user_profile, market_data)
-
-
+# ===================================================================================================================================================================================================
 # ----------------------------- Module-level initialization -----------------------------
+# ===================================================================================================================================================================================================
 try:
     recommendation_engine = RecommendationEngine()
     logger.info("✅ Global recommendation engine initialized")
