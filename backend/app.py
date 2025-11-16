@@ -1992,9 +1992,60 @@ def clear_recommendations_cache():
     except Exception as e:
         logger.error(f"❌ Error clearing recommendations cache: {e}")
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
-
-
     
+@app.route('/api/news', methods=['GET'])
+def get_news():
+    """
+    Proxy endpoint for fetching financial news from GNews API
+    Solves CORS issues by making server-side request
+    """
+    try:
+        # Get query parameters from frontend
+        category = request.args.get('category', 'All')
+        
+        # Determine search term based on category
+        search_term = "indian finance" if category == "All" else f"indian {category.lower()}"
+        
+        # Get API key from environment
+        gnews_api_key = os.environ.get('GNEWS_API_KEY')
+        
+        if not gnews_api_key:
+            return jsonify({
+                'error': 'GNews API key not configured',
+                'articles': []
+            }), 500
+        
+        # Make request to GNews API (server-side, no CORS issues)
+        gnews_url = f"https://gnews.io/api/v4/search?q={search_term}&lang=en&country=in&max=10&apikey={gnews_api_key}"
+        
+        response = requests.get(gnews_url, timeout=10)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'error': f'GNews API error: {response.status_code}',
+                'articles': []
+            }), response.status_code
+        
+        data = response.json()
+        
+        # Check for API errors in response
+        if 'errors' in data:
+            return jsonify({
+                'error': data['errors'][0],
+                'articles': []
+            }), 400
+        
+        # Return articles
+        return jsonify({
+            'articles': data.get('articles', []),
+            'totalArticles': data.get('totalArticles', 0)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Server error: {str(e)}',
+            'articles': []
+        }), 500
 
 # ==================== END OF NEW ENDPOINTS ====================
 

@@ -49,33 +49,56 @@ const MoneyPulse = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const fetchNews = async (category: string) => {
-    setLoading(true);
-    setError("");
-    try {
-      const searchTerm =
-        category === "All"
-          ? "indian finance"
-          : `indian ${category.toLowerCase()}`;
-      const response = await fetch(
-        `https://gnews.io/api/v4/search?q=${searchTerm}&lang=en&country=in&max=10&apikey=${
-          import.meta.env.VITE_GNEWS_API_KEY
-        }`
-      );
-      const data = await response.json();
+  // const fetchNews = async (category: string) => {
+  //   setLoading(true);
+  //   setError("");
+  //   try {
+  //     const searchTerm =
+  //       category === "All"
+  //         ? "indian finance"
+  //         : `indian ${category.toLowerCase()}`;
+  //     const response = await fetch(
+  //       `https://gnews.io/api/v4/search?q=${searchTerm}&lang=en&country=in&max=10&apikey=${
+  //         import.meta.env.VITE_GNEWS_API_KEY
+  //       }`
+  //     );
+  //     const data = await response.json();
 
-      if (data.errors) {
-        throw new Error(data.errors[0]);
-      }
+  //     if (data.errors) {
+  //       throw new Error(data.errors[0]);
+  //     }
 
-      setNews(data.articles || []);
-    } catch (err) {
-      setError("Failed to fetch news. Please try again later.");
-      console.error("Error fetching news:", err);
-    } finally {
-      setLoading(false);
+  //     setNews(data.articles || []);
+  //   } catch (err) {
+  //     setError("Failed to fetch news. Please try again later.");
+  //     console.error("Error fetching news:", err);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+const fetchNews = async (category: string) => {
+  setLoading(true);
+  setError("");
+  try {
+    // ✅ CORRECT: Using VITE_SERVER_URL from your .env
+    const response = await fetch(
+      `${import.meta.env.VITE_SERVER_URL}/api/news?category=${category}`
+    );
+    
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error);
     }
-  };
+
+    setNews(data.articles || []);
+  } catch (err) {
+    setError("Failed to fetch news. Please try again later.");
+    console.error("Error fetching news:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchNews(selectedCategory);
