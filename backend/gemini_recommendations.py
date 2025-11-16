@@ -428,67 +428,9 @@ class RecommendationEngine:
     #         }
     #     }
 
-    # def generate_recommendations(self, user_profile: Dict[str, Any], market_data: Dict[str, Any], portfolio_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    #     """
-    #     Public method: generate recommendations with retries and robust JSON extraction.
-    #     Returns parsed recommendations or fallback if all else fails.
-    #     """
-    #     if not self.model:
-    #         logger.error("LLM model not initialized")
-    #         return self._get_fallback_recommendations(user_profile, market_data)
-
-    #     prompt = self._build_recommendation_prompt(user_profile, market_data, portfolio_data)
-
-    #     max_retries = 3
-    #     last_candidate_text = ""
-    #     for attempt in range(1, max_retries + 1):
-    #         try:
-    #             logger.info(f"🤖 Attempt {attempt}/{max_retries}: Calling LLM API...")
-    #             from langchain_core.messages import HumanMessage
-    #             response = self.model.invoke([HumanMessage(content=prompt)])
-    #             raw_text = getattr(response, "content", "") or str(response)
-    #             raw_text = raw_text.strip()
-    #             logger.info(f"📝 Received response (first 300 chars): {raw_text[:300]!s}")
-
-    #             # Extract and try to parse JSON
-    #             parsed, used_text = extract_and_fix_json(raw_text)
-    #             last_candidate_text = used_text
-
-    #             if parsed is not None:
-    #                 # Validate and return
-    #                 parsed = self._validate_and_fill(parsed, user_profile, market_data)
-    #                 parsed["metadata"]["parsedFromModel"] = True
-    #                 logger.info("✅ Successfully parsed and validated model output")
-    #                 return parsed
-    #             else:
-    #                 logger.warning("⚠️ Could not parse JSON from model output")
-    #                 # If not last attempt, slightly adjust prompt nudges
-    #                 if attempt < max_retries:
-    #                     logger.info("🔄 Retrying with stronger JSON-only instruction")
-    #                     prompt = self.json_prefix + "\n\n" + prompt
-    #                     continue
-    #                 else:
-    #                     logger.error("❌ All retries exhausted; returning fallback recommendations")
-    #                     fallback = self._get_fallback_recommendations(user_profile, market_data)
-    #                     fallback["metadata"]["parsedFromModel"] = False
-    #                     fallback["metadata"]["lastModelAttempt"] = last_candidate_text[:2000]
-    #                     return fallback
-
-    #         except Exception as e:
-    #             logger.exception(f"Error while generating recommendations (attempt {attempt}): {e}")
-    #             if attempt >= max_retries:
-    #                 fallback = self._get_fallback_recommendations(user_profile, market_data)
-    #                 fallback["metadata"]["parsedFromModel"] = False
-    #                 fallback["metadata"]["error"] = str(e)
-    #                 return fallback
-    #             # else continue retrying
-
-    #     # Should not reach here; return fallback
-    #     return self._get_fallback_recommendations(user_profile, market_data)
-
-# ===================================================================================================================================================================================================
-# THIS IS THE UPDATED CODE, ABOVE IS THE OLDER CODE, JUST KEPT FOR REFERENCE
-# ===================================================================================================================================================================================================
+    # ===================================================================================================================================================================================================
+    # THIS IS THE UPDATED CODE, ABOVE IS THE OLDER CODE, JUST KEPT FOR REFERENCE
+    # ===================================================================================================================================================================================================
 
     def _build_recommendation_prompt(self,user_profile: Dict[str, Any],market_data: Dict[str, Any],portfolio_data: Optional[Dict[str, Any]]) -> str:
         """
@@ -694,6 +636,65 @@ class RecommendationEngine:
         ]:
             rec[key] = []
         return rec
+    
+    
+    def generate_recommendations(self, user_profile: Dict[str, Any], market_data: Dict[str, Any], portfolio_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Public method: generate recommendations with retries and robust JSON extraction.
+        Returns parsed recommendations or fallback if all else fails.
+        """
+        if not self.model:
+            logger.error("LLM model not initialized")
+            return self._get_fallback_recommendations(user_profile, market_data)
+
+        prompt = self._build_recommendation_prompt(user_profile, market_data, portfolio_data)
+
+        max_retries = 3
+        last_candidate_text = ""
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"🤖 Attempt {attempt}/{max_retries}: Calling LLM API...")
+                from langchain_core.messages import HumanMessage
+                response = self.model.invoke([HumanMessage(content=prompt)])
+                raw_text = getattr(response, "content", "") or str(response)
+                raw_text = raw_text.strip()
+                logger.info(f"📝 Received response (first 300 chars): {raw_text[:300]!s}")
+
+                # Extract and try to parse JSON
+                parsed, used_text = extract_and_fix_json(raw_text)
+                last_candidate_text = used_text
+
+                if parsed is not None:
+                    # Validate and return
+                    parsed = self._validate_and_fill(parsed, user_profile, market_data)
+                    parsed["metadata"]["parsedFromModel"] = True
+                    logger.info("✅ Successfully parsed and validated model output")
+                    return parsed
+                else:
+                    logger.warning("⚠️ Could not parse JSON from model output")
+                    # If not last attempt, slightly adjust prompt nudges
+                    if attempt < max_retries:
+                        logger.info("🔄 Retrying with stronger JSON-only instruction")
+                        prompt = self.json_prefix + "\n\n" + prompt
+                        continue
+                    else:
+                        logger.error("❌ All retries exhausted; returning fallback recommendations")
+                        fallback = self._get_fallback_recommendations(user_profile, market_data)
+                        fallback["metadata"]["parsedFromModel"] = False
+                        fallback["metadata"]["lastModelAttempt"] = last_candidate_text[:2000]
+                        return fallback
+
+            except Exception as e:
+                logger.exception(f"Error while generating recommendations (attempt {attempt}): {e}")
+                if attempt >= max_retries:
+                    fallback = self._get_fallback_recommendations(user_profile, market_data)
+                    fallback["metadata"]["parsedFromModel"] = False
+                    fallback["metadata"]["error"] = str(e)
+                    return fallback
+                # else continue retrying
+
+        # Should not reach here; return fallback
+        return self._get_fallback_recommendations(user_profile, market_data)
 
 # ===================================================================================================================================================================================================
 # ----------------------------- Module-level initialization -----------------------------
