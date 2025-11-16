@@ -190,7 +190,7 @@ const Recommendations: React.FC = () => {
         setCacheInfo(cacheResponse.data.cacheInfo || { cached: true });
         setLoading(false);
       } else {
-        console.log('ℹ️ No cached recommendations found, generating new...');
+        console.log('⚠️ No cached recommendations found, generating new...');
         await generateRecommendations();
       }
       
