@@ -162,11 +162,29 @@ const Recommendations: React.FC = () => {
         const recs = cacheResponse.data.recommendations;
         
         // Validate cached data; regenerate if corrupt
-        if (!recs.stocks || !Array.isArray(recs.stocks) || recs.stocks.some((s: any) => s.currentPrice == null)) {
-          console.warn('⚠️ Cached data is corrupt, regenerating...');
-          await generateRecommendations(true);
-          return;
-        }
+        // if (!recs.stocks || !Array.isArray(recs.stocks) || recs.stocks.some((s: any) => s.currentPrice == null)) {
+        //   console.warn('⚠️ Cached data is corrupt, regenerating...');
+        //   await generateRecommendations(true);
+        //   return;
+        // }
+
+      // ==========================================================================================================================================
+      // REPLACE WITH THIS
+      // ==========================================================================================================================================
+      const hasValidStocks = recs.stocks && Array.isArray(recs.stocks) && recs.stocks.every((s: any) => s.currentPrice != null);
+      const hasValidMFs    = recs.mutualFunds && Array.isArray(recs.mutualFunds) && recs.mutualFunds.length > 0;
+      const hasValidFDs    = recs.fixedDeposits && Array.isArray(recs.fixedDeposits) && recs.fixedDeposits.length > 0;
+      const hasValidBonds  = recs.bonds && Array.isArray(recs.bonds) && recs.bonds.length > 0;
+      const hasValidRE     = recs.realEstate && Array.isArray(recs.realEstate) && recs.realEstate.length > 0;
+
+      const hasAnyValid = hasValidStocks || hasValidMFs || hasValidFDs || hasValidBonds || hasValidRE;
+
+      if (!hasAnyValid) {
+        console.warn('⚠️ Cached data incomplete or corrupt (no valid recommendation types), regenerating.');
+        await generateRecommendations(true);
+        return;
+      }
+
         
         setRecommendations(recs);
         setCacheInfo(cacheResponse.data.cacheInfo || { cached: true });
