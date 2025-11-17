@@ -694,7 +694,13 @@ const Recommendations: React.FC = () => {
                   </div>
                   
                   <div className="space-y-2 mb-4">
-                    {fd.features.slice(0, 3).map((feature, idx) => (
+                    {/*==================================================================================================*/}
+                    {/*CHANGED THIS PART */}
+                    {/*==================================================================================================*/}
+
+                    
+                    {/*{fd.features.slice(0, 3).map((feature, idx) => (*/}
+                    {(fd.features || []).slice(0, 3).map((feature, idx) => (
                       <div key={idx} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                         <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                         {feature}
