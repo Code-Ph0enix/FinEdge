@@ -556,14 +556,34 @@ const Recommendations: React.FC = () => {
                   {/* NAV */}
                   <div className="mb-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400">Current NAV</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">₹{fund.nav.toFixed(2)}</p>
+
+                    {/*==================================================================================================*/}
+                    {/*CHANGED THIS PART */}
+                    {/*==================================================================================================*/}
+
+
+                    {/*<p className="text-2xl font-bold text-gray-900 dark:text-white">₹{fund.nav.toFixed(2)}</p>*/}
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">₹{(fund.nav || 0).toFixed(2)}</p>
+
+
+
+
+
                   </div>
                   
                   {/* Returns */}
                   <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div className="text-center p-2 bg-white dark:bg-gray-900 rounded-lg">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">1Y</p>
-                      <p className="text-sm font-semibold text-green-600 dark:text-green-400">{fund.returns1Y}%</p>
+                  <div className="text-center p-2 bg-white dark:bg-gray-900 rounded-lg">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">1Y</p>
+
+
+                    {/*==================================================================================================*/}
+                    {/*CHANGED THIS PART */}
+                    {/*==================================================================================================*/}
+
+
+                    {/*<p className="text-sm font-semibold text-green-600 dark:text-green-400">{fund.returns1Y}%</p>*/}
+                    <p className="text-sm font-semibold text-green-600 dark:text-green-400">{(fund.returns1Y || 0).toFixed(1)}%</p>
                     </div>
                     {fund.returns3Y != null && (
                       <div className="text-center p-2 bg-white dark:bg-gray-900 rounded-lg">
@@ -587,7 +607,13 @@ const Recommendations: React.FC = () => {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-500 dark:text-gray-400">Monthly Amount</span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">₹{fund.monthlyInvestment.toLocaleString('en-IN')}</span>
+                    {/*==================================================================================================*/}
+                    {/*COMMENTED LINE IS KEPT FOR BACKUP JUST IN CASE APP FAILS*/}
+                    {/*==================================================================================================*/}
+
+
+                      {/*<span className="text-sm font-semibold text-gray-900 dark:text-white">₹{fund.monthlyInvestment.toLocaleString('en-IN')}</span>*/}
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">₹{(fund.monthlyInvestment || 0).toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                   
@@ -655,7 +681,15 @@ const Recommendations: React.FC = () => {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-500 dark:text-gray-400">Monthly Deposit</span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">₹{fd.monthlyInvestment.toLocaleString('en-IN')}</span>
+
+
+                    {/*==================================================================================================*/}
+                    {/*CHANGED THIS PART */}
+                    {/*==================================================================================================*/}
+
+
+                      {/*<span className="text-sm font-semibold text-gray-900 dark:text-white">₹{fd.monthlyInvestment.toLocaleString('en-IN')}</span>*/}
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">₹{(fd.monthlyInvestment || 0).toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                   

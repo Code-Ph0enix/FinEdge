@@ -499,6 +499,62 @@ class RecommendationEngine:
         
         return "\n".join(prompt_parts)
     
+    # ===================================================================================================================================================================================================
+    # CHANGING THIS FUNCTION AS WELL
+    # ==================================================================================================================================================================================================  
+    
+    # def _validate_and_fill(self,recommendations: Dict[str, Any],user_profile: Dict[str, Any],market_data: Dict[str, Any]) -> Dict[str, Any]:
+    #     # Ensure marketSentiment
+    #     if "marketSentiment" not in recommendations:
+    #         recommendations["marketSentiment"] = {
+    #             "trend": market_data.get("niftyTrend", "Neutral"),
+    #             "fiiFlow": str(market_data.get("fiiFlow", 0)),
+    #             "riskLevel": "Moderate",
+    #             "summary": "Market data unavailable; defaults used."
+    #         }
+
+    #     # All arrays that must exist
+    #     array_fields = [
+    #         "stocks", "mutualFunds", "fixedDeposits",
+    #         "equityFunds", "debtFunds", "hybridFunds",
+    #         "lowRiskStocks", "moderateRiskStocks", "highRiskStocks",
+    #         "bonds", "realEstate", "gold", "etfs", "sips",
+    #         "actionPlan"
+    #     ]
+
+    #     for key in array_fields:
+    #         if key not in recommendations or not isinstance(recommendations[key], list):
+    #             recommendations[key] = []
+
+    #     # Normalizer
+    #     def _normalize_number(v):
+    #         if isinstance(v, (int, float)):
+    #             return v
+    #         if isinstance(v, str):
+    #             s = v.replace(",", "").replace("₹", "").strip()
+    #             try:
+    #                 return float(s) if "." in s else int(s)
+    #             except:
+    #                 return v
+    #         return v
+
+    #     # Normalize numeric fields for STOCKS only
+    #     for s in recommendations.get("stocks", []):
+    #         s["currentPrice"] = _normalize_number(s.get("currentPrice", 0))
+    #         s["targetPrice"] = _normalize_number(s.get("targetPrice", 0))
+    #         s["recommendedAllocation"] = _normalize_number(s.get("recommendedAllocation", 0))
+    #         s["monthlyInvestment"] = _normalize_number(s.get("monthlyInvestment", 0))
+
+    #     # Add metadata
+    #     recommendations.setdefault("metadata", {})
+    #     recommendations["metadata"].update({
+    #         "generatedAt": datetime.utcnow().isoformat(),
+    #         "usedProvider": ACTIVE_LLM_PROVIDER,
+    #         "keyIndex": ACTIVE_KEY_INDEX
+    #     })
+    #     return recommendations
+
+
     def _validate_and_fill(self,recommendations: Dict[str, Any],user_profile: Dict[str, Any],market_data: Dict[str, Any]) -> Dict[str, Any]:
         # Ensure marketSentiment
         if "marketSentiment" not in recommendations:
@@ -522,7 +578,7 @@ class RecommendationEngine:
             if key not in recommendations or not isinstance(recommendations[key], list):
                 recommendations[key] = []
 
-        # Normalizer
+        # Normalizer - FIXED to return 0 instead of v for invalid values
         def _normalize_number(v):
             if isinstance(v, (int, float)):
                 return v
@@ -531,15 +587,44 @@ class RecommendationEngine:
                 try:
                     return float(s) if "." in s else int(s)
                 except:
-                    return v
-            return v
+                    return 0  # ✅ CHANGED: Return 0 instead of v
+            return 0  # ✅ CHANGED: Return 0 for None/undefined
 
-        # Normalize numeric fields for STOCKS only
+        # Normalize numeric fields for STOCKS
         for s in recommendations.get("stocks", []):
             s["currentPrice"] = _normalize_number(s.get("currentPrice", 0))
             s["targetPrice"] = _normalize_number(s.get("targetPrice", 0))
             s["recommendedAllocation"] = _normalize_number(s.get("recommendedAllocation", 0))
             s["monthlyInvestment"] = _normalize_number(s.get("monthlyInvestment", 0))
+
+        # ✅ NEW: Normalize numeric fields for MUTUAL FUNDS
+        for mf in recommendations.get("mutualFunds", []):
+            mf["nav"] = _normalize_number(mf.get("nav", 0))
+            mf["returns1Y"] = _normalize_number(mf.get("returns1Y", 0))
+            mf["returns3Y"] = _normalize_number(mf.get("returns3Y", 0))
+            mf["returns5Y"] = _normalize_number(mf.get("returns5Y", 0))
+            mf["recommendedAllocation"] = _normalize_number(mf.get("recommendedAllocation", 0))
+            mf["monthlyInvestment"] = _normalize_number(mf.get("monthlyInvestment", 0))
+            mf["rating"] = _normalize_number(mf.get("rating", 3))
+
+        # ✅ NEW: Normalize numeric fields for FIXED DEPOSITS
+        for fd in recommendations.get("fixedDeposits", []):
+            fd["interestRate"] = _normalize_number(fd.get("interestRate", 0))
+            fd["minAmount"] = _normalize_number(fd.get("minAmount", 0))
+            fd["recommendedAllocation"] = _normalize_number(fd.get("recommendedAllocation", 0))
+            fd["monthlyInvestment"] = _normalize_number(fd.get("monthlyInvestment", 0))
+
+        # ✅ NEW: Normalize numeric fields for BONDS
+        for bond in recommendations.get("bonds", []):
+            bond["interestRate"] = _normalize_number(bond.get("interestRate", 0))
+            bond["minAmount"] = _normalize_number(bond.get("minAmount", 0))
+            bond["recommendedAllocation"] = _normalize_number(bond.get("recommendedAllocation", 0))
+            bond["monthlyInvestment"] = _normalize_number(bond.get("monthlyInvestment", 0))
+
+        # ✅ NEW: Normalize numeric fields for REAL ESTATE
+        for re in recommendations.get("realEstate", []):
+            re["minAmount"] = _normalize_number(re.get("minAmount", 0))
+            re["recommendedAllocation"] = _normalize_number(re.get("recommendedAllocation", 0))
 
         # Add metadata
         recommendations.setdefault("metadata", {})
@@ -549,6 +634,10 @@ class RecommendationEngine:
             "keyIndex": ACTIVE_KEY_INDEX
         })
         return recommendations
+    
+    # ===================================================================================================================================================================================================
+    # CHANGED FUNCTION ENDS TILL ABOVE LINE
+    # ===================================================================================================================================================================================================
     
     def _get_fallback_recommendations(self, user_profile: Dict[str, Any], market_data: Dict[str, Any]) -> Dict[str, Any]:
         """
