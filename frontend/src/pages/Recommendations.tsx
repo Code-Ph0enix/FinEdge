@@ -164,99 +164,121 @@ const Recommendations: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<string>('');
 
   // Fetch recommendations
-  const fetchRecommendations = async (forceRefresh: boolean = false) => {
-    if (!user?.id) return;
+const fetchRecommendations = async (forceRefresh: boolean = false) => {
+  if (!user?.id) return;
 
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    try {
-      const response = await axios.get(`${SERVER_URL}/api/recommendations/get`, {
-        params: { 
-          clerkUserId: user.id,
-          refresh: forceRefresh 
-        },
-        timeout: 30000
-      });
-
-      if (response.data && typeof response.data === 'object') {
-        // Validate response structure
-        const validatedData = validateRecommendationsData(response.data);
-        setRecommendations(validatedData);
-        setLastUpdated(new Date().toLocaleString('en-IN'));
-        setError(null);
-      } else {
-        throw new Error('Invalid response format from server');
-      }
-    } catch (err: any) {
-      console.error('Error fetching recommendations:', err);
-      setError(err.response?.data?.detail || 'Failed to fetch recommendations. Please try again.');
-      setRecommendations(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Validate recommendations data
-  const validateRecommendationsData = (data: any): RecommendationsData => {
-    const validated: RecommendationsData = {
-      marketSentiment: data.marketSentiment || {
-        trend: 'Neutral',
-        fiiFlow: 0,
-        riskLevel: 'Medium',
-        summary: 'Market data unavailable'
+  try {
+    const response = await axios.get(`${SERVER_URL}/api/recommendations/get`, {
+      params: { 
+        clerkUserId: user.id,
+        refresh: forceRefresh 
       },
-      stocks: Array.isArray(data.stocks) ? data.stocks.filter(isValidItem) : [],
-      mutualFunds: Array.isArray(data.mutualFunds) ? data.mutualFunds.filter(isValidItem) : [],
-      bonds: Array.isArray(data.bonds) ? data.bonds.filter(isValidItem) : [],
-      realEstate: Array.isArray(data.realEstate) ? data.realEstate.filter(isValidItem) : [],
-      commodities: Array.isArray(data.commodities) ? data.commodities.filter(isValidItem) : [],
-      alternativeInvestments: Array.isArray(data.alternativeInvestments) ? data.alternativeInvestments.filter(isValidItem) : [],
-      metadata: data.metadata
-    };
+      timeout: 30000
+    });
 
-    return validated;
-  };
+    if (response.data && typeof response.data === 'object') {
+      // Validate response structure
+      const validatedData = validateRecommendationsData(response.data);
 
-  // Check if item has valid data
-  const isValidItem = (item: any): boolean => {
-    if (!item || typeof item !== 'object') return false;
-    if (!item.name || item.name.trim() === '') return false;
-    
-    // Check for at least one valid numeric field
-    const numericFields = Object.values(item).filter(val => 
-      typeof val === 'number' && !isNaN(val) && val > 0
-    );
-    
-    return numericFields.length > 0;
-  };
+      // 🚨 If no recommendations exist → trigger generation endpoint
+      const nothingThere =
+        !validatedData.stocks.length &&
+        !validatedData.mutualFunds.length &&
+        !validatedData.bonds.length &&
+        !validatedData.realEstate.length &&
+        !validatedData.commodities.length &&
+        !validatedData.alternativeInvestments.length;
 
-  // Initial load
-  useEffect(() => {
-    if (isLoaded && user) {
-      fetchRecommendations(false);
+      if (nothingThere) {
+        console.warn("⚠️ No cached recommendations — generating fresh ones...");
+        await axios.post(`${SERVER_URL}/api/recommendations/generate`, {
+          clerkUserId: user.id,
+          forceRefresh: true
+        });
+
+        // Fetch again after generating
+        return fetchRecommendations(false);
+      }
+
+      // If data exists → show it
+      setRecommendations(validatedData);
+      setLastUpdated(new Date().toLocaleString('en-IN'));
+      setError(null);
+    } else {
+      throw new Error('Invalid response format from server');
     }
-  }, [isLoaded, user]);
+  } catch (err: any) {
+    console.error('Error fetching recommendations:', err);
+    setError(err.response?.data?.detail || 'Failed to fetch recommendations. Please try again.');
+    setRecommendations(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  // Manual refresh
-  const handleRefresh = () => {
-    fetchRecommendations(true);
+// Validate recommendations data
+const validateRecommendationsData = (data: any): RecommendationsData => {
+  const validated: RecommendationsData = {
+    marketSentiment: data.marketSentiment || {
+      trend: 'Neutral',
+      fiiFlow: 0,
+      riskLevel: 'Medium',
+      summary: 'Market data unavailable'
+    },
+    stocks: Array.isArray(data.stocks) ? data.stocks.filter(isValidItem) : [],
+    mutualFunds: Array.isArray(data.mutualFunds) ? data.mutualFunds.filter(isValidItem) : [],
+    bonds: Array.isArray(data.bonds) ? data.bonds.filter(isValidItem) : [],
+    realEstate: Array.isArray(data.realEstate) ? data.realEstate.filter(isValidItem) : [],
+    commodities: Array.isArray(data.commodities) ? data.commodities.filter(isValidItem) : [],
+    alternativeInvestments: Array.isArray(data.alternativeInvestments) ? data.alternativeInvestments.filter(isValidItem) : [],
+    metadata: data.metadata
   };
 
-  // Get counts for each category
-  const getCategoryCounts = () => {
-    if (!recommendations) return {};
-    return {
-      stocks: recommendations.stocks.length,
-      mutualFunds: recommendations.mutualFunds.length,
-      bonds: recommendations.bonds.length,
-      realEstate: recommendations.realEstate.length,
-      commodities: recommendations.commodities.length,
-      alternatives: recommendations.alternativeInvestments.length
-    };
-  };
+  return validated;
+};
 
-  const counts = getCategoryCounts();
+// Check if item has valid data
+const isValidItem = (item: any): boolean => {
+  if (!item || typeof item !== 'object') return false;
+  if (!item.name || item.name.trim() === '') return false;
+
+  // Check for at least one valid numeric field
+  const numericFields = Object.values(item).filter(
+    (val) => typeof val === 'number' && !isNaN(val) && val > 0
+  );
+
+  return numericFields.length > 0;
+};
+
+// Initial load
+useEffect(() => {
+  if (isLoaded && user) {
+    fetchRecommendations(false);
+  }
+}, [isLoaded, user]);
+
+// Manual refresh
+const handleRefresh = () => {
+  fetchRecommendations(true);
+};
+
+// Get counts for each category
+const getCategoryCounts = () => {
+  if (!recommendations) return {};
+  return {
+    stocks: recommendations.stocks.length,
+    mutualFunds: recommendations.mutualFunds.length,
+    bonds: recommendations.bonds.length,
+    realEstate: recommendations.realEstate.length,
+    commodities: recommendations.commodities.length,
+    alternatives: recommendations.alternativeInvestments.length
+  };
+};
+
+const counts = getCategoryCounts();
 
   // Filter buttons configuration
   const filterButtons = [

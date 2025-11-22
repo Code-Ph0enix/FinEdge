@@ -1993,6 +1993,56 @@ def clear_recommendations_cache():
         logger.error(f"❌ Error clearing recommendations cache: {e}")
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
     
+
+# =======================================================
+# BACKWARD COMPATIBLE ENDPOINT FOR FRONTEND LATEST ADDED
+# =======================================================
+@app.route('/api/recommendations/generate', methods=['POST'])
+def generate_recommendations_endpoint():
+    """
+    Generate fresh recommendations for the user.
+    Called when no cache exists or when refresh=true.
+    """
+    try:
+        from gemini_recommendations import RecommendationEngine
+        db = get_database()
+
+        clerk_user_id = request.json.get("clerkUserId")
+        force = request.json.get("forceRefresh", False)
+
+        if not clerk_user_id:
+            return jsonify({"error": "clerkUserId is required"}), 400
+
+        # Load user profile
+        profile = db[Collections.USER_PROFILES].find_one({"clerkUserId": clerk_user_id})
+        if not profile:
+            return jsonify({"error": "User profile not found"}), 404
+
+        user_data = {
+            "age": profile.get("age"),
+            "risk_tolerance": profile.get("riskTolerance", "Medium"),
+            "monthly_income": profile.get("monthlyIncome", 0),
+            "investment_goals": profile.get("investmentGoals", "Wealth Building"),
+            "time_horizon": profile.get("timeHorizon", "Medium"),
+        }
+
+        engine = RecommendationEngine()
+        recs = engine.generate_recommendations(user_data)
+
+        # Save to MongoDB cache
+        db[Collections.INVESTMENT_RECOMMENDATIONS].insert_one({
+            "clerkUserId": clerk_user_id,
+            "recommendations": recs,
+            "createdAt": datetime.utcnow()
+        })
+
+        return jsonify(recs)
+    
+    except Exception as e:
+        logger.error(f"❌ Error generating recommendations: {e}")
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+    
 @app.route('/api/news', methods=['GET'])
 def get_news():
     """
