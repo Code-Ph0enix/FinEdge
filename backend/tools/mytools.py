@@ -172,73 +172,73 @@ def get_historical_price(inputs: str) -> str:
 #     except Exception as e:
 #         return str(e)
 # new robust get_current_price in tools/mytools.py
-@tool
-def get_current_price(company_name: str) -> str:
-    """
-    Robust current price tool:
-    - Accepts company name or ticker.
-    - Resolves to a ticker using get_ticker_from_company (your existing helper).
-    - Uses yfinance to fetch current price and metadata.
-    - Returns a JSON string with symbol, price (float), currency, timestamp (ISO) or {"error": "..."}.
-    """
-    import json
-    try:
-        if not company_name:
-            return json.dumps({"error": "Empty company_name"})
+# @tool
+# def get_current_price(company_name: str) -> str:
+#     """
+#     Robust current price tool:
+#     - Accepts company name or ticker.
+#     - Resolves to a ticker using get_ticker_from_company (your existing helper).
+#     - Uses yfinance to fetch current price and metadata.
+#     - Returns a JSON string with symbol, price (float), currency, timestamp (ISO) or {"error": "..."}.
+#     """
+#     import json
+#     try:
+#         if not company_name:
+#             return json.dumps({"error": "Empty company_name"})
 
-        # resolve to ticker (your existing helper function)
-        symbol = get_ticker_from_company(company_name)
+#         # resolve to ticker (your existing helper function)
+#         symbol = get_ticker_from_company(company_name)
 
-        # fetch using yfinance
-        stock = yf.Ticker(symbol)
+#         # fetch using yfinance
+#         stock = yf.Ticker(symbol)
 
-        # try best-effort price sources
-        info = {}
-        try:
-            info = stock.info or {}
-        except Exception:
-            info = {}
+#         # try best-effort price sources
+#         info = {}
+#         try:
+#             info = stock.info or {}
+#         except Exception:
+#             info = {}
 
-        price = info.get("regularMarketPrice") or info.get("currentPrice")
-        if price is None:
-            # fallback: use intraday/last close
-            hist = stock.history(period="1d", interval="1m")
-            if hist is not None and not hist.empty:
-                price = float(hist["Close"].iloc[-1])
-            else:
-                # fallback to previous close
-                price = info.get("previousClose") or info.get("regularMarketPreviousClose")
+#         price = info.get("regularMarketPrice") or info.get("currentPrice")
+#         if price is None:
+#             # fallback: use intraday/last close
+#             hist = stock.history(period="1d", interval="1m")
+#             if hist is not None and not hist.empty:
+#                 price = float(hist["Close"].iloc[-1])
+#             else:
+#                 # fallback to previous close
+#                 price = info.get("previousClose") or info.get("regularMarketPreviousClose")
 
-        if price is None:
-            return json.dumps({"error": "No data available for ticker: " + str(symbol)})
+#         if price is None:
+#             return json.dumps({"error": "No data available for ticker: " + str(symbol)})
 
-        currency = info.get("currency") or "INR"
-        prev_close = info.get("previousClose")
-        change = None
-        change_pct = None
-        try:
-            if prev_close is not None:
-                change = float(price) - float(prev_close)
-                change_pct = round((change / float(prev_close)) * 100, 2) if float(prev_close) != 0 else None
-        except Exception:
-            change = None
-            change_pct = None
+#         currency = info.get("currency") or "INR"
+#         prev_close = info.get("previousClose")
+#         change = None
+#         change_pct = None
+#         try:
+#             if prev_close is not None:
+#                 change = float(price) - float(prev_close)
+#                 change_pct = round((change / float(prev_close)) * 100, 2) if float(prev_close) != 0 else None
+#         except Exception:
+#             change = None
+#             change_pct = None
 
-        out = {
-            "symbol": symbol,
-            "price": float(price),
-            "previous_close": prev_close,
-            "change": change,
-            "change_percent": change_pct,
-            "currency": currency,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        return json.dumps(out)
+#         out = {
+#             "symbol": symbol,
+#             "price": float(price),
+#             "previous_close": prev_close,
+#             "change": change,
+#             "change_percent": change_pct,
+#             "currency": currency,
+#             "timestamp": datetime.utcnow().isoformat()
+#         }
+#         return json.dumps(out)
 
-    except Exception as e:
-        import json, traceback
-        logger.exception(f"get_current_price failed for {company_name}: {e}")
-        return json.dumps({"error": str(e)})
+#     except Exception as e:
+#         import json, traceback
+#         logger.exception(f"get_current_price failed for {company_name}: {e}")
+#         return json.dumps({"error": str(e)})
 
 
 # 3. Fetch Company Info
