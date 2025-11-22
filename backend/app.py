@@ -50,7 +50,7 @@ from models import (
 )
 from bson import ObjectId
 # ADD this import near other imports
-from gemini_recommendations import get_personalized_recommendations
+from backend.recommendations import get_personalized_recommendations
 
 
 # ✅ ADD THESE TWO LINES TO SILENCE YFINANCE
@@ -96,7 +96,7 @@ try:
         get_session_info,  # NEW - Session metadata
         cleanup_old_sessions  # NEW - Automatic cleanup
     )
-    import gemini_fin_path
+    import backend.financial_journey as financial_journey
     logger.info("AI Financial Advisor module loaded successfully")
 except ImportError as e:
     logging.warning(f"Could not import AI modules: {e}")
@@ -108,7 +108,7 @@ except ImportError as e:
     get_chat_history = None
     get_session_info = None
     cleanup_old_sessions = None
-    gemini_fin_path = None
+    financial_journey = None
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -307,7 +307,7 @@ def ai_financial_path():
     
     print(f"Processing financial path for: {input_text}, risk: {risk}")
     
-    if not gemini_fin_path:
+    if not financial_journey:
         return jsonify({'error': 'Financial AI service not available'}), 503
     
     try:
@@ -318,7 +318,7 @@ def ai_financial_path():
         logger.info(f"📊 User data received: {user_data}")
         
         # 1. Get the JSON STRING from the Gemini service WITH USER DATA
-        response_string = gemini_fin_path.get_gemini_response(input_text, risk, user_data)
+        response_string = financial_journey.get_gemini_response(input_text, risk, user_data)
         
         # 2. Parse the JSON string into a Python dictionary
         response_dict = json.loads(response_string)
@@ -2060,7 +2060,7 @@ def generate_recommendations_endpoint():
     Called when no cache exists or when refresh=true.
     """
     try:
-        from gemini_recommendations import RecommendationEngine
+        from backend.recommendations import RecommendationEngine
         db = get_database()
 
         clerk_user_id = request.json.get("clerkUserId")
