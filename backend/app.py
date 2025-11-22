@@ -864,34 +864,34 @@ def complete_onboarding():
     """
     try:
         data = request.json
+        if data is None:
+            logger.error(f"No JSON body received in onboarding completion request. Raw data: {request.data}")
+            return jsonify({'error': 'Missing or invalid JSON body'}), 400
         clerk_user_id = data.get('clerkUserId')
-        
+        risk_tolerance = data.get('riskTolerance')
         if not clerk_user_id:
             return jsonify({'error': 'clerkUserId is required'}), 400
-        
+        if not risk_tolerance:
+            logger.error(f"Missing riskTolerance in onboarding payload: {data}")
+            return jsonify({'error': 'riskTolerance is required'}), 400
         db = get_database()
-        
         # Update or create user profile
         user_profile = {
             "clerkUserId": clerk_user_id,
             "onboardingCompleted": True,
             "onboardingStep": 5,
-            "riskTolerance": data.get('riskTolerance'),
+            "riskTolerance": risk_tolerance,
             "updatedAt": datetime.utcnow()
         }
-        
         result = db[Collections.USER_PROFILES].update_one(
             {"clerkUserId": clerk_user_id},
             {"$set": user_profile},
             upsert=True
         )
-        
         # Save income entries
         income_entries = data.get('income', [])
         if income_entries:
-            # Delete existing entries for this user
             db[Collections.INCOME].delete_many({"clerkUserId": clerk_user_id})
-            # Insert new entries
             for entry in income_entries:
                 income_doc = IncomeSchema.create(
                     clerk_user_id=clerk_user_id,
@@ -902,7 +902,6 @@ def complete_onboarding():
                     date=entry['date']
                 )
                 db[Collections.INCOME].insert_one(income_doc)
-        
         # Save expense entries
         expense_entries = data.get('expenses', [])
         if expense_entries:
@@ -918,7 +917,6 @@ def complete_onboarding():
                     is_essential=entry.get('isEssential', False)
                 )
                 db[Collections.EXPENSES].insert_one(expense_doc)
-        
         # Save asset entries
         asset_entries = data.get('assets', [])
         if asset_entries:
@@ -934,7 +932,6 @@ def complete_onboarding():
                     notes=entry.get('notes')
                 )
                 db[Collections.ASSETS].insert_one(asset_doc)
-        
         # Save liability entries
         liability_entries = data.get('liabilities', [])
         if liability_entries:
@@ -951,17 +948,14 @@ def complete_onboarding():
                     notes=entry.get('notes')
                 )
                 db[Collections.LIABILITIES].insert_one(liability_doc)
-        
         logger.info(f"✅ Onboarding completed for user: {clerk_user_id}")
-        
         return jsonify({
             'success': True,
             'message': 'Onboarding completed successfully',
             'profileId': str(result.upserted_id) if result.upserted_id else None
         })
-        
     except Exception as e:
-        logger.error(f"Error completing onboarding: {e}")
+        logger.error(f"Error completing onboarding: {e}. Payload: {request.json}")
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 

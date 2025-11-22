@@ -146,7 +146,7 @@ export const RiskToleranceTab = () => {
       setIsSaving(true);
       setError(null);
       
-      const response = await fetch(`${SERVER_URL}/api/onboarding/submit`, {
+      const response = await fetch(`${SERVER_URL}/api/onboarding/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
