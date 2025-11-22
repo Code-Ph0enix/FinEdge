@@ -310,7 +310,7 @@ GENERATE investment recommendations matching this EXACT JSON structure:
 
 CRITICAL RULES:
 1. ALL numeric values must be plain numbers (no commas, no ₹ symbols)
-2. Provide at least 3-5 recommendations per category
+2. Provide exactly 6 recommendations per category
 3. Ensure monthlyInvestment values are realistic based on savings
 4. ALL fields must be present with valid data
 5. Return ONLY the JSON object, nothing else
