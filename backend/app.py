@@ -1838,7 +1838,7 @@ def generate_investment_recommendations():
         
         try:
             recommendations = get_personalized_recommendations(
-                user_data=user_data,
+                user_profile=user_profile,
                 market_data=market_data,
                 portfolio_data=None  # You can add portfolio analysis later
             )
