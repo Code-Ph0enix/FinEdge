@@ -30,7 +30,8 @@ import {
   Plane,
   Heart,
   Zap,
-  MoreHorizontal
+  MoreHorizontal,
+  IndianRupeeIcon
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 
@@ -824,7 +825,7 @@ const MoneyCalc = () => {
               <div className="bg-white/70 dark:bg-gray-700/50 backdrop-blur-sm rounded-2xl border border-gray-200/60 dark:border-gray-600/60 p-6 shadow-xl w-full">
                 <div className="text-center mb-6">
                   <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Plus className="w-8 h-8 text-white" />
+                    <IndianRupeeIcon className="w-8 h-8 text-white" />
                   </div>
                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                     Add Financial Data
@@ -1148,7 +1149,7 @@ const MoneyCalc = () => {
                       : 'border-gray-300 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-500'
                   }`}
                 >
-                  <DollarSign className={`w-6 h-6 mx-auto mb-2 ${
+                  <IndianRupeeIcon className={`w-6 h-6 mx-auto mb-2 ${
                     selectedDataType === 'liability'
                       ? 'text-orange-600 dark:text-orange-400'
                       : 'text-gray-600 dark:text-gray-300'
