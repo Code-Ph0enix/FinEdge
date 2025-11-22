@@ -22,6 +22,16 @@ import warnings
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
+# =========================================================
+# NEW IMPORTS FOR ENHANCED FUNCTIONALITY & FALLBACKS
+# =========================================================
+
+# new: yfinance for real-time price fetching and Flask JSON helper (used by app.py later)
+import yfinance as yf
+import re
+from flask import jsonify  # only imported here so app.py code snippet can call helper if needed
+
+# =========================================================
 # Third-party imports
 from dotenv import load_dotenv
 
@@ -485,6 +495,111 @@ def initialize_tools():
             logger.error(f"Alternate import also failed: {e2}")
             # Return minimal toolset if import fails (NEW - ADDED for robustness)
             return []
+        
+# =====================================================================================
+# STOCK PRICE / TICKER HELPERS - NEW FUNCTION ADDED TO SHOW REAL-TIME PRICE FETCHING
+# =====================================================================================
+
+# Minimal company name -> ticker mapping. Extend this in production.
+_TICKER_OVERRIDE = {
+    # common examples; extend as needed
+    "adani green energy": "ADANIGREEN.NS",
+    "reliance": "RELIANCE.NS",
+    "tcs": "TCS.NS",
+    "hdfc bank": "HDFCBANK.NS",
+    "hdfcbank": "HDFCBANK.NS",
+    "infosys": "INFY.NS",
+    "reliance industries": "RELIANCE.NS",
+    "nifty": "^NSEI",
+    "sensex": "^BSESN"
+}
+
+def resolve_ticker(query: str) -> str:
+    """
+    Resolve a user free-text (company name or ticker) into a yfinance-compatible ticker string.
+    Strategy:
+      1. lowercase normalize and check override dict
+      2. if looks like a ticker (all upper + maybe .NS), return as-is
+      3. fallback: try appending .NS
+    This is intentionally simple and reliable. Improve with a proper symbol lookup if needed.
+    """
+    if not query:
+        return ""
+    q = query.strip().lower()
+    # quick check override map
+    if q in _TICKER_OVERRIDE:
+        return _TICKER_OVERRIDE[q]
+    # if user passed symbol like ADANIGREEN or ADANIGREEN.NS
+    simple = re.sub(r"[^A-Za-z0-9\.]", "", query).upper()
+    # if already contains a dot (like .NS) or starts with ^ (index), return
+    if "." in simple or simple.startswith("^"):
+        return simple
+    # finally append NSE suffix as a guess
+    return simple + ".NS"
+
+def fetch_stock_price_by_symbol(symbol: str) -> Dict[str, Any]:
+    """
+    Use yfinance to fetch the latest price and some metadata for a given symbol.
+    Returns a structured dict or raises an exception. Caller should handle exceptions.
+    """
+    try:
+        if not symbol:
+            raise ValueError("Empty symbol")
+
+        t = yf.Ticker(symbol)
+        # Try to get realtime-ish market price
+        info = {}
+        try:
+            info = t.info if hasattr(t, "info") else {}
+        except Exception:
+            info = {}
+
+        # Try to get regularMarketPrice from info
+        price = info.get("regularMarketPrice") or info.get("currentPrice")
+
+        # If info didn't have it, fallback to last history close
+        if price is None:
+            hist = t.history(period="1d", interval="1m")
+            if not hist.empty:
+                # last row close
+                price = float(hist['Close'].iloc[-1])
+            else:
+                # try 5d
+                hist = t.history(period="5d")
+                price = float(hist['Close'].iloc[-1]) if not hist.empty else None
+
+        # additional metadata
+        prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose")
+        currency = info.get("currency") or "INR"
+        day_change = None
+        day_pct = None
+        if price is not None and prev_close is not None:
+            try:
+                day_change = float(price) - float(prev_close)
+                day_pct = (day_change / float(prev_close)) * 100 if float(prev_close) != 0 else None
+            except Exception:
+                day_change = None
+                day_pct = None
+
+        # 52 week
+        fifty_two_week_low = info.get("fiftyTwoWeekLow")
+        fifty_two_week_high = info.get("fiftyTwoWeekHigh")
+
+        return {
+            "symbol": symbol,
+            "price": price,
+            "previous_close": prev_close,
+            "change": day_change,
+            "change_percent": round(day_pct, 2) if day_pct is not None else None,
+            "currency": currency,
+            "52_week_low": fifty_two_week_low,
+            "52_week_high": fifty_two_week_high,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.exception(f"fetch_stock_price_by_symbol error for {symbol}: {e}")
+        raise
+
 
 
 # Initialize LLM for ReAct agent with fallback (UPDATED)
@@ -502,6 +617,58 @@ except Exception as e:
 
 # Initialize tools (LEGACY)
 tools = initialize_tools()
+# ---------------------------
+# Register / wrap get_current_price tool (D + B)
+# ---------------------------
+
+# If the module 'get_current_price' tool exists in tools list, keep it.
+# Otherwise, add our robust wrapper that uses yfinance helper above.
+def _get_current_price_wrapper(arg: str):
+    """
+    Wrapper for ReAct agent tool calling. Accepts either a symbol or natural language,
+    resolves to a symbol, and returns JSON-like string result.
+    """
+    try:
+        # If the user passed something like "price of Adani Green", extract the company phrase
+        # crude extraction: take last 6-8 words after 'price' or 'current price'
+        text = (arg or "").strip()
+        # Try to extract quoted substring if provided
+        m = re.search(r'["“](.+?)["”]', text)
+        company = None
+        if m:
+            company = m.group(1)
+        else:
+            # try common patterns
+            m2 = re.search(r'price of (.+)', text, flags=re.I)
+            if m2:
+                company = m2.group(1)
+            else:
+                # fallback: take last 4 words as company
+                parts = text.split()
+                company = " ".join(parts[-4:]) if len(parts) >= 1 else text
+
+        symbol = resolve_ticker(company)
+        data = fetch_stock_price_by_symbol(symbol)
+        return data
+    except Exception as e:
+        return {"error": str(e)}
+
+# Add wrapper into tools map for MinimalToolAgent if not present
+try:
+    # If explicit tool exists (from tools.mytools) prefer that name
+    found = False
+    for t in tools or []:
+        name = getattr(t, "name", None) or getattr(t, "__name__", None)
+        if name and name.lower() == "get_current_price".lower():
+            found = True
+            break
+    if not found:
+        # expose wrapper as a simple callable with name 'get_current_price'
+        tools = (tools or []) + [_get_current_price_wrapper]
+        logger.info("Added _get_current_price_wrapper to tools for robust price fetching")
+except Exception as e:
+    logger.warning(f"Failed to register price wrapper: {e}")
+
 
 
 
@@ -643,6 +810,20 @@ if react_llm:
                     self.tools_map = tools_map
                     self.default_prompt = default_prompt
 
+                # def _find_tool_for_query(self, query_text: str):
+                #     q = query_text.lower()
+                #     # exact name match or contained name (prefers longer names)
+                #     best = None
+                #     for name in sorted(self.tools_map.keys(), key=lambda x: -len(x)):
+                #         if name in q:
+                #             best = name
+                #             break
+                #     return best
+
+                # =============================================================
+                # ENHANCED TOOL FINDING WITH HEURISTICS
+                # =============================================================
+                
                 def _find_tool_for_query(self, query_text: str):
                     q = query_text.lower()
                     # exact name match or contained name (prefers longer names)
@@ -651,7 +832,26 @@ if react_llm:
                         if name in q:
                             best = name
                             break
+                    # Additional heuristic: if user asks about 'price', 'current price', 'trading at', map to get_current_price
+                    if not best:
+                        if re.search(r'\b(price|current price|trading at|cmp|share price|stock price)\b', q):
+                            # prefer tool named like get_current_price if available
+                            for candidate in ("get_current_price", "current_price", "price", "price_lookup"):
+                                if candidate in self.tools_map:
+                                    best = candidate
+                                    break
+                            # final fallback: if wrapper function added without specific name, attempt to find a callable that returns dict with 'price'
+                            if not best:
+                                for nm, fn in self.tools_map.items():
+                                    try:
+                                        # quick probe: don't actually call, but match name heuristics
+                                        if "price" in nm:
+                                            best = nm
+                                            break
+                                    except Exception:
+                                        continue
                     return best
+
 
                 def invoke(self, payload):
                     # accept {'input': "..."} or a list of messages (compat)

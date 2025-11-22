@@ -51,6 +51,8 @@ from models import (
 from bson import ObjectId
 # ADD this import near other imports
 from recommendations import get_personalized_recommendations
+# at top of app.py imports
+from ai_financial_advisor import resolve_ticker, fetch_stock_price_by_symbol
 
 
 # ✅ ADD THESE TWO LINES TO SILENCE YFINANCE
@@ -2152,6 +2154,32 @@ def get_news():
             'error': f'Server error: {str(e)}',
             'articles': []
         }), 500
+    
+# add endpoint
+@app.route("/api/stock-price", methods=["GET"])
+def api_stock_price():
+    """
+    Query parameters:
+      - q  : free text company name or ticker (preferred)
+      - symbol : explicit symbol like ADANIGREEN.NS
+    Returns JSON with latest price data.
+    """
+    q = request.args.get("q", "").strip()
+    symbol_param = request.args.get("symbol", "").strip()
+
+    if symbol_param:
+        symbol = symbol_param.strip()
+    elif q:
+        symbol = resolve_ticker(q)
+    else:
+        return jsonify({"error": "missing query parameter 'q' or 'symbol'"}), 400
+
+    try:
+        data = fetch_stock_price_by_symbol(symbol)
+        return jsonify({"success": True, "symbol": symbol, "data": data})
+    except Exception as e:
+        logger.exception(f"API /api/stock-price error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # ==================== END OF NEW ENDPOINTS ====================
 
