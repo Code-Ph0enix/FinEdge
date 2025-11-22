@@ -50,7 +50,7 @@ from models import (
 )
 from bson import ObjectId
 # ADD this import near other imports
-from backend.recommendations import get_personalized_recommendations
+from recommendations import get_personalized_recommendations
 
 
 # ✅ ADD THESE TWO LINES TO SILENCE YFINANCE
@@ -86,7 +86,7 @@ logger = logging.getLogger(__name__)
 # NEW - ENHANCED (Replace the above with):
 try:
     # ENHANCED - Import from consolidated module
-    from financial_advisor import (
+    from ai_financial_advisor import (
         get_comprehensive_financial_advice,  # NEW - Main function
         chat_with_advisor,  # LEGACY compatible
         get_agent_research,  # NEW - For research-only
