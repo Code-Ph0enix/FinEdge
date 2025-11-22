@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta  # ✅ ADD timedelta
@@ -115,6 +116,14 @@ except ImportError as e:
 # Initialize Flask application
 app = Flask(__name__)
 CORS(app)
+
+# Import and register learning routes
+try:
+    from learning_routes import learning_bp
+    app.register_blueprint(learning_bp)
+    logger.info("Learning routes registered successfully")
+except ImportError as e:
+    logger.warning(f"Could not import learning routes: {e}")
 
 # NEW - UPDATED: Database initialization for Flask 3.0
 def init_app():
@@ -2104,7 +2113,7 @@ def generate_recommendations_endpoint():
 @app.route('/api/news', methods=['GET'])
 def get_news():
     """
-    Proxy endpoint for fetching financial news from GNews API
+    Proxy endpoint for fetching financial news from GNews API with yfinance fallback
     Solves CORS issues by making server-side request
     """
     try:
@@ -2114,42 +2123,94 @@ def get_news():
         # Determine search term based on category
         search_term = "indian finance" if category == "All" else f"indian {category.lower()}"
         
-        # Get API key from environment
+        # Try GNews API first
         gnews_api_key = os.environ.get('GNEWS_API_KEY')
         
-        if not gnews_api_key:
-            return jsonify({
-                'error': 'GNews API key not configured',
-                'articles': []
-            }), 500
+        if gnews_api_key:
+            try:
+                # Make request to GNews API (server-side, no CORS issues)
+                gnews_url = f"https://gnews.io/api/v4/search?q={search_term}&lang=en&country=in&max=10&apikey={gnews_api_key}"
+                
+                response = requests.get(gnews_url, timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    # Check for API errors in response
+                    if 'errors' not in data:
+                        # Return articles from GNews API
+                        return jsonify({
+                            'articles': data.get('articles', []),
+                            'totalArticles': data.get('totalArticles', 0),
+                            'source': 'gnews'
+                        }), 200
+            except Exception as gnews_error:
+                logger.warning(f"GNews API failed: {gnews_error}")
         
-        # Make request to GNews API (server-side, no CORS issues)
-        gnews_url = f"https://gnews.io/api/v4/search?q={search_term}&lang=en&country=in&max=10&apikey={gnews_api_key}"
+        # Fallback to yfinance news if GNews fails or is not configured
+        logger.info("Using yfinance for news data as fallback")
         
-        response = requests.get(gnews_url, timeout=10)
+        # Get news from popular Indian stocks as a proxy for financial news
+        indian_tickers = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS', 'HINDUNILVR.NS', 'SBIN.NS']
         
-        if response.status_code != 200:
-            return jsonify({
-                'error': f'GNews API error: {response.status_code}',
-                'articles': []
-            }), response.status_code
+        articles = []
         
-        data = response.json()
+        for ticker in indian_tickers[:3]:  # Limit to 3 tickers to avoid too many requests
+            try:
+                stock = yf.Ticker(ticker)
+                news = stock.news
+                
+                for item in news[:3]:  # Get 3 articles per stock
+                    # Convert yfinance news format to expected format
+                    article = {
+                        'title': item.get('title', 'No Title'),
+                        'description': item.get('summary', item.get('title', 'No description available')),
+                        'content': item.get('summary', ''),
+                        'url': item.get('link', ''),
+                        'image': item.get('thumbnail', {}).get('resolutions', [{}])[-1].get('url', 'https://via.placeholder.com/640x480?text=Financial+News'),
+                        'publishedAt': datetime.fromtimestamp(item.get('providerPublishTime', time.time())).isoformat(),
+                        'source': {
+                            'name': item.get('publisher', 'Yahoo Finance'),
+                            'url': item.get('link', '')
+                        }
+                    }
+                    articles.append(article)
+                    
+                    if len(articles) >= 10:  # Limit total articles
+                        break
+                        
+                if len(articles) >= 10:
+                    break
+                    
+            except Exception as ticker_error:
+                logger.warning(f"Failed to get news for {ticker}: {ticker_error}")
+                continue
         
-        # Check for API errors in response
-        if 'errors' in data:
-            return jsonify({
-                'error': data['errors'][0],
-                'articles': []
-            }), 400
+        # If no articles found, provide sample financial news
+        if not articles:
+            articles = [
+                {
+                    'title': 'Indian Stock Market Update',
+                    'description': 'Stay updated with the latest developments in Indian financial markets.',
+                    'content': 'Market analysis and financial insights.',
+                    'url': 'https://finance.yahoo.com',
+                    'image': 'https://via.placeholder.com/640x480?text=Market+Update',
+                    'publishedAt': datetime.now().isoformat(),
+                    'source': {
+                        'name': 'FinEdge News',
+                        'url': 'https://finance.yahoo.com'
+                    }
+                }
+            ]
         
-        # Return articles
         return jsonify({
-            'articles': data.get('articles', []),
-            'totalArticles': data.get('totalArticles', 0)
+            'articles': articles[:10],  # Limit to 10 articles
+            'totalArticles': len(articles),
+            'source': 'yfinance_fallback'
         }), 200
         
     except Exception as e:
+        logger.error(f"News API error: {e}")
         return jsonify({
             'error': f'Server error: {str(e)}',
             'articles': []

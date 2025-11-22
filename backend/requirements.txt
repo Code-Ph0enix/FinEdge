@@ -16,5 +16,6 @@ pandas
 numpy
 datetime
 pymongo
+pydantic
 dnspython
 bcrypt
