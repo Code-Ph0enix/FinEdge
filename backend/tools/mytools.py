@@ -5,7 +5,7 @@
 
 # load_dotenv()
 # ✅ FIXED: Import tool from correct location for LangChain 1.x
-import datetime
+from datetime import datetime
 try:
     from langchain_core.tools import tool
 except ImportError:
