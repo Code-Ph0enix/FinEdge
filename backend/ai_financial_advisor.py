@@ -283,7 +283,12 @@ When answering investment queries:
 4. Provide balanced pros and cons (2-3 each maximum)
 5. Never guarantee returns or outcomes
 
-Remember: Brevity is key. Quality over quantity."""
+Remember: Brevity is key. Quality over quantity.
+Whenever a tool returns JSON (such as get_current_price), DO NOT rewrite or summarize it. 
+Simply extract the values (price, change, percent, etc.) and answer the user's question using those exact numbers.
+If the tool gives an error field, explain the error directly instead of guessing.
+Always prioritize clarity and usefulness in your responses.
+"""
 
 # ==================== SESSION MANAGEMENT (LEGACY + ENHANCED) ====================
 
@@ -1155,7 +1160,7 @@ def get_comprehensive_financial_advice(
 
     start_time = datetime.now()
 
-    # Step 0 — Classification
+    # STEP 0 — Classification
     if use_research:
         classification = classify_query_with_ai(user_query)
         should_use_research = classification['needs_research']
@@ -1170,7 +1175,7 @@ def get_comprehensive_financial_advice(
     logger.info(f"[{session_id}] Should use research: {should_use_research}")
     logger.info(f"[{session_id}] Reasoning: {classification_reasoning}")
 
-    # STEP 1 — Research Phase (correct position)
+    # STEP 1 — Research Phase
     research_context = ""
     research_results = {}
 
@@ -1181,7 +1186,7 @@ def get_comprehensive_financial_advice(
         if research_results.get("success"):
             raw = research_results.get("output", "")
 
-            # Format dict → readable text
+            # Clean readable research text
             if isinstance(raw, dict):
                 research_context = "\n".join([f"{k}: {v}" for k, v in raw.items()])
             elif isinstance(raw, str):
@@ -1190,48 +1195,39 @@ def get_comprehensive_financial_advice(
                 research_context = str(raw)
 
             logger.info(f"[{session_id}] Formatted research context: {research_context}")
-            logger.info(f"[{session_id}] Research completed successfully")
         else:
             logger.warning(f"[{session_id}] Research failed, proceeding without it")
 
     else:
         logger.info(f"[{session_id}] Skipping research phase")
 
-    # STEP 2 — Advisory LLM using research context
+    # STEP 2 — Advisory LLM
     logger.info(f"[{session_id}] Phase 2: Generating financial advice using {ACTIVE_LLM_PROVIDER}")
     advisory_response = chat_with_advisor(user_query, research_context, session_id)
 
     processing_time = (datetime.now() - start_time).total_seconds()
 
-    return {
-        "advice": advisory_response,
-        "research_used": should_use_research,
-        "query_type": query_type,
-        "processing_time": processing_time,
-        "research_context": research_context,
-        "raw_research": research_results
-    }
-
-
-    # Construct comprehensive response (ENHANCED)
+    # FINAL unified response (you had this but unreachable)
     response = {
         'session_id': session_id,
         'query': user_query,
         'advice': advisory_response,
         'research_used': should_use_research and research_results.get('success', False),
-        'research_skipped': not should_use_research,  # NEW - ADDED
-        'query_type': query_type,  # NEW - ADDED (AI-determined)
-        'classification_reasoning': classification_reasoning if use_research else None,  # NEW - ADDED
+        'research_skipped': not should_use_research,
+        'query_type': query_type,
+        'classification_reasoning': classification_reasoning,
         'research_output': research_context if research_results.get('success') else None,
+        'raw_research': research_results,
         'processing_time_seconds': round(processing_time, 2),
         'timestamp': datetime.now().isoformat(),
-        'llm_provider': ACTIVE_LLM_PROVIDER,  # NEW - ADDED
-        'llm_key_index': ACTIVE_KEY_INDEX,  # NEW - ADDED
+        'llm_provider': ACTIVE_LLM_PROVIDER,
+        'llm_key_index': ACTIVE_KEY_INDEX,
         'error': research_results.get('error') if not research_results.get('success') else None
     }
 
     logger.info(f"[{session_id}] Completed in {processing_time:.2f}s using {ACTIVE_LLM_PROVIDER}")
     return response
+
 
 
 # ==================== LEGACY COMPATIBILITY FUNCTIONS ====================
