@@ -823,7 +823,7 @@ if react_llm:
                 # =============================================================
                 # ENHANCED TOOL FINDING WITH HEURISTICS
                 # =============================================================
-                
+
                 def _find_tool_for_query(self, query_text: str):
                     q = query_text.lower()
                     # exact name match or contained name (prefers longer names)
@@ -1147,18 +1147,15 @@ Respond in this EXACT JSON format (no extra text):
             'reasoning': 'Classification error, using research as fallback'
         }
 
-
 def get_comprehensive_financial_advice(
     user_query: str,
     session_id: str = 'default',
     use_research: bool = True
 ) -> Dict[str, Any]:
-    """
-    Main function that combines ReAct agent research with LLM advisory.
-    """
+
     start_time = datetime.now()
 
-    # NEW - ADDED: AI-powered classification (replaces keyword matching)
+    # Step 0 — Classification
     if use_research:
         classification = classify_query_with_ai(user_query)
         should_use_research = classification['needs_research']
@@ -1169,31 +1166,52 @@ def get_comprehensive_financial_advice(
         query_type = 'conceptual'
         classification_reasoning = 'Research disabled by user'
 
-    if not should_use_research:
-        logger.info(f"[{session_id}] AI classified as {query_type}, skipping research phase")
-        logger.info(f"[{session_id}] Reasoning: {classification_reasoning}")
+    logger.info(f"[{session_id}] Query type: {query_type}")
+    logger.info(f"[{session_id}] Should use research: {should_use_research}")
+    logger.info(f"[{session_id}] Reasoning: {classification_reasoning}")
 
-    # Step 1: Research with ReAct agent (ENHANCED - AI-driven conditional)
-    research_results = {}
+    # STEP 1 — Research Phase (correct position)
     research_context = ""
+    research_results = {}
 
     if should_use_research and agent_executor:
         logger.info(f"[{session_id}] Phase 1: Conducting research")
         research_results = get_agent_research(user_query, session_id)
 
-        if research_results['success']:
-            research_context = research_results['output']
+        if research_results.get("success"):
+            raw = research_results.get("output", "")
+
+            # Format dict → readable text
+            if isinstance(raw, dict):
+                research_context = "\n".join([f"{k}: {v}" for k, v in raw.items()])
+            elif isinstance(raw, str):
+                research_context = raw
+            else:
+                research_context = str(raw)
+
+            logger.info(f"[{session_id}] Formatted research context: {research_context}")
             logger.info(f"[{session_id}] Research completed successfully")
         else:
             logger.warning(f"[{session_id}] Research failed, proceeding without it")
 
-    # Step 2: Get advisory response from LLM (UPDATED with fallback)
+    else:
+        logger.info(f"[{session_id}] Skipping research phase")
+
+    # STEP 2 — Advisory LLM using research context
     logger.info(f"[{session_id}] Phase 2: Generating financial advice using {ACTIVE_LLM_PROVIDER}")
     advisory_response = chat_with_advisor(user_query, research_context, session_id)
 
-    # Calculate processing time (LEGACY)
-    end_time = datetime.now()
-    processing_time = (end_time - start_time).total_seconds()
+    processing_time = (datetime.now() - start_time).total_seconds()
+
+    return {
+        "advice": advisory_response,
+        "research_used": should_use_research,
+        "query_type": query_type,
+        "processing_time": processing_time,
+        "research_context": research_context,
+        "raw_research": research_results
+    }
+
 
     # Construct comprehensive response (ENHANCED)
     response = {
