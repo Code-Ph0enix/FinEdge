@@ -171,9 +171,9 @@ const Recommendations: React.FC = () => {
     setError(null);
 
     try {
-      const response = await axios.get(`${SERVER_URL}/api/recommendations`, {
+      const response = await axios.get(`${SERVER_URL}/api/recommendations/get`, {
         params: { 
-          user_id: user.id,
+          clerkUserId: user.id,
           refresh: forceRefresh 
         },
         timeout: 30000
