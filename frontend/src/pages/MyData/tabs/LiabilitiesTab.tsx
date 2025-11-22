@@ -23,6 +23,30 @@ interface Liability {
   notes?: string;
 }
 
+const normalizeLiability = (doc: any): Liability => ({
+  id: doc?.id ?? doc?._id ?? '',
+  name: doc?.name ?? '',
+  amount:
+    typeof doc?.amount === 'number'
+      ? doc.amount
+      : Number.parseFloat(doc?.amount ?? '0') || 0,
+  category: (doc?.category ?? 'other') as Liability['category'],
+  interestRate:
+    typeof doc?.interestRate === 'number'
+      ? doc.interestRate
+      : doc?.interestRate
+      ? Number.parseFloat(doc.interestRate)
+      : undefined,
+  dueDate: doc?.dueDate ?? undefined,
+  monthlyPayment:
+    typeof doc?.monthlyPayment === 'number'
+      ? doc.monthlyPayment
+      : doc?.monthlyPayment
+      ? Number.parseFloat(doc.monthlyPayment)
+      : undefined,
+  notes: doc?.notes ?? undefined,
+});
+
 const categoryIcons = {
   homeloan: Home,
   carloan: Car,
@@ -84,7 +108,10 @@ export const LiabilitiesTab = () => {
 
         if (response.ok) {
           const data = await response.json();
-          setLiabilities(data.liabilities || []);
+          const normalized = (data.liabilities || [])
+            .map(normalizeLiability)
+            .filter((liability: Liability) => Boolean(liability.id));
+          setLiabilities(normalized);
         } else {
           console.error('Failed to fetch liabilities data');
         }
@@ -101,29 +128,42 @@ export const LiabilitiesTab = () => {
   const handleAdd = async () => {
     if (!user?.id) return;
 
-    const newLiability: Liability = {
-      id: `liability_${Date.now()}`,
-      name: formData.name,
-      amount: parseFloat(formData.amount),
-      category: formData.category as any,
-      interestRate: formData.interestRate ? parseFloat(formData.interestRate) : undefined,
-      dueDate: formData.dueDate || undefined,
-      monthlyPayment: formData.monthlyPayment ? parseFloat(formData.monthlyPayment) : undefined,
-      notes: formData.notes || undefined
-    };
-
     try {
+      const amountRaw = Number.parseFloat(formData.amount);
+      const amount = Number.isNaN(amountRaw) ? 0 : amountRaw;
+      const interestRaw = formData.interestRate
+        ? Number.parseFloat(formData.interestRate)
+        : undefined;
+      const interestRate =
+        interestRaw !== undefined && !Number.isNaN(interestRaw) ? interestRaw : undefined;
+      const monthlyPaymentRaw = formData.monthlyPayment
+        ? Number.parseFloat(formData.monthlyPayment)
+        : undefined;
+      const monthlyPayment =
+        monthlyPaymentRaw !== undefined && !Number.isNaN(monthlyPaymentRaw)
+          ? monthlyPaymentRaw
+          : undefined;
+
       const response = await fetch(`${SERVER_URL}/api/user-profile/liabilities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clerkUserId: user.id,
-          ...newLiability
+          name: formData.name,
+          amount,
+          category: formData.category,
+          interestRate: interestRate ?? null,
+          dueDate: formData.dueDate || null,
+          monthlyPayment: monthlyPayment ?? null,
+          notes: formData.notes || null,
         }),
       });
 
       if (response.ok) {
-        setLiabilities([...liabilities, newLiability]);
+        const result = await response.json();
+        if (result?.liability) {
+          setLiabilities((prev) => [...prev, normalizeLiability(result.liability)]);
+        }
         setIsModalOpen(false);
         resetForm();
       } else {
@@ -137,34 +177,55 @@ export const LiabilitiesTab = () => {
   const handleEdit = async () => {
     if (!selectedLiability || !user?.id) return;
 
-    const updatedLiability: Liability = {
-      id: selectedLiability,
-      name: formData.name,
-      amount: parseFloat(formData.amount),
-      category: formData.category as any,
-      interestRate: formData.interestRate ? parseFloat(formData.interestRate) : undefined,
-      dueDate: formData.dueDate || undefined,
-      monthlyPayment: formData.monthlyPayment ? parseFloat(formData.monthlyPayment) : undefined,
-      notes: formData.notes || undefined
-    };
-
     try {
-      const response = await fetch(
-        `${SERVER_URL}/api/user-profile/liabilities/${selectedLiability}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clerkUserId: user.id,
-            ...updatedLiability
-          }),
-        }
-      );
+      const amountRaw = Number.parseFloat(formData.amount);
+      const amount = Number.isNaN(amountRaw) ? 0 : amountRaw;
+      const interestRaw = formData.interestRate
+        ? Number.parseFloat(formData.interestRate)
+        : undefined;
+      const interestRate =
+        interestRaw !== undefined && !Number.isNaN(interestRaw) ? interestRaw : undefined;
+      const monthlyPaymentRaw = formData.monthlyPayment
+        ? Number.parseFloat(formData.monthlyPayment)
+        : undefined;
+      const monthlyPayment =
+        monthlyPaymentRaw !== undefined && !Number.isNaN(monthlyPaymentRaw)
+          ? monthlyPaymentRaw
+          : undefined;
+
+      const response = await fetch(`${SERVER_URL}/api/user-profile/liabilities`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clerkUserId: user.id,
+          _id: selectedLiability,
+          name: formData.name,
+          amount,
+          category: formData.category,
+          interestRate: interestRate ?? null,
+          dueDate: formData.dueDate || null,
+          monthlyPayment: monthlyPayment ?? null,
+          notes: formData.notes || null,
+        }),
+      });
 
       if (response.ok) {
-        setLiabilities(liabilities.map(liability => 
-          liability.id === selectedLiability ? updatedLiability : liability
-        ));
+        setLiabilities((prev) =>
+          prev.map((liability) =>
+            liability.id === selectedLiability
+              ? {
+                  ...liability,
+                  name: formData.name,
+                  amount,
+                  category: formData.category as Liability['category'],
+                  interestRate,
+                  dueDate: formData.dueDate || undefined,
+                  monthlyPayment,
+                  notes: formData.notes || undefined,
+                }
+              : liability
+          )
+        );
         setIsModalOpen(false);
         setIsEditing(false);
         resetForm();
@@ -177,18 +238,18 @@ export const LiabilitiesTab = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!user?.id || !confirm('Are you sure you want to delete this liability?')) return;
+    if (!user?.id || !id || !confirm('Are you sure you want to delete this liability?')) return;
 
     try {
       const response = await fetch(
-        `${SERVER_URL}/api/user-profile/liabilities/${id}?clerkUserId=${user.id}`,
+        `${SERVER_URL}/api/user-profile/liabilities?clerkUserId=${user.id}&entryId=${id}`,
         {
           method: 'DELETE',
         }
       );
 
       if (response.ok) {
-        setLiabilities(liabilities.filter(liability => liability.id !== id));
+        setLiabilities((prev) => prev.filter((liability) => liability.id !== id));
       } else {
         console.error('Failed to delete liability');
       }

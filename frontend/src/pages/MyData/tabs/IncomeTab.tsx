@@ -21,6 +21,18 @@ interface Income {
   date: string;
 }
 
+const normalizeIncome = (doc: any): Income => ({
+  id: doc?.id ?? doc?._id ?? '',
+  source: doc?.source ?? '',
+  amount:
+    typeof doc?.amount === 'number'
+      ? doc.amount
+      : Number.parseFloat(doc?.amount ?? '0') || 0,
+  frequency: (doc?.frequency ?? 'monthly') as Income['frequency'],
+  category: (doc?.category ?? 'other') as Income['category'],
+  date: doc?.date ?? new Date().toISOString().split('T')[0],
+});
+
 const categoryIcons = {
   salary: Briefcase,
   investment: TrendingUp,
@@ -60,7 +72,10 @@ export const IncomeTab = () => {
 
         if (response.ok) {
           const data = await response.json();
-          setIncomes(data.income || []);
+          const normalized = (data.income || [])
+            .map(normalizeIncome)
+            .filter((income: Income) => Boolean(income.id));
+          setIncomes(normalized);
         } else {
           console.error('Failed to fetch income data');
         }
@@ -77,14 +92,8 @@ export const IncomeTab = () => {
   const handleAdd = async () => {
     if (!user?.id) return;
 
-    const newIncome: Income = {
-      id: `income_${Date.now()}`,
-      source: formData.source,
-      amount: parseFloat(formData.amount),
-      frequency: formData.frequency as 'monthly' | 'yearly' | 'one-time',
-      category: formData.category as 'salary' | 'investment' | 'gift' | 'other',
-      date: formData.date
-    };
+    const amountValue = Number.parseFloat(formData.amount);
+    const amount = Number.isNaN(amountValue) ? 0 : amountValue;
 
     try {
       const response = await fetch(`${SERVER_URL}/api/user-profile/income`, {
@@ -92,12 +101,19 @@ export const IncomeTab = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clerkUserId: user.id,
-          ...newIncome
+          source: formData.source,
+          amount,
+          frequency: formData.frequency,
+          category: formData.category,
+          date: formData.date,
         }),
       });
 
       if (response.ok) {
-        setIncomes([...incomes, newIncome]);
+        const result = await response.json();
+        if (result?.income) {
+          setIncomes((prev) => [...prev, normalizeIncome(result.income)]);
+        }
         setIsModalOpen(false);
         resetForm();
       } else {
@@ -111,32 +127,39 @@ export const IncomeTab = () => {
   const handleEdit = async () => {
     if (!selectedIncome || !user?.id) return;
 
-    const updatedIncome: Income = {
-      id: selectedIncome,
-      source: formData.source,
-      amount: parseFloat(formData.amount),
-      frequency: formData.frequency as 'monthly' | 'yearly' | 'one-time',
-      category: formData.category as 'salary' | 'investment' | 'gift' | 'other',
-      date: formData.date
-    };
+    const amountValue = Number.parseFloat(formData.amount);
+    const amount = Number.isNaN(amountValue) ? 0 : amountValue;
 
     try {
-      const response = await fetch(
-        `${SERVER_URL}/api/user-profile/income/${selectedIncome}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clerkUserId: user.id,
-            ...updatedIncome
-          }),
-        }
-      );
+      const response = await fetch(`${SERVER_URL}/api/user-profile/income`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clerkUserId: user.id,
+          _id: selectedIncome,
+          source: formData.source,
+          amount,
+          frequency: formData.frequency,
+          category: formData.category,
+          date: formData.date,
+        }),
+      });
 
       if (response.ok) {
-        setIncomes(incomes.map(inc => 
-          inc.id === selectedIncome ? updatedIncome : inc
-        ));
+        setIncomes((prev) =>
+          prev.map((income) =>
+            income.id === selectedIncome
+              ? {
+                  ...income,
+                  source: formData.source,
+                  amount,
+                  frequency: formData.frequency as Income['frequency'],
+                  category: formData.category as Income['category'],
+                  date: formData.date,
+                }
+              : income
+          )
+        );
         setIsModalOpen(false);
         setIsEditing(false);
         resetForm();
@@ -149,18 +172,18 @@ export const IncomeTab = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!user?.id || !confirm('Are you sure you want to delete this income source?')) return;
+    if (!user?.id || !id || !confirm('Are you sure you want to delete this income source?')) return;
 
     try {
       const response = await fetch(
-        `${SERVER_URL}/api/user-profile/income/${id}?clerkUserId=${user.id}`,
+        `${SERVER_URL}/api/user-profile/income?clerkUserId=${user.id}&entryId=${id}`,
         {
           method: 'DELETE',
         }
       );
 
       if (response.ok) {
-        setIncomes(incomes.filter(inc => inc.id !== id));
+        setIncomes((prev) => prev.filter((income) => income.id !== id));
       } else {
         console.error('Failed to delete income');
       }

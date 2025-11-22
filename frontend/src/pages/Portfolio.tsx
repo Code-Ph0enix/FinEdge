@@ -5,20 +5,49 @@
  * @version 4.0.0 - Full Feature Set
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line, RadarChart, PolarGrid, 
+  PieChart, Pie, Cell, RadarChart, PolarGrid, 
   PolarAngleAxis, PolarRadiusAxis, Radar, Area, AreaChart
 } from 'recharts';
 import { 
-  Wallet, TrendingUp, ArrowUpRight, IndianRupee, 
+  Wallet, TrendingUp, IndianRupee, 
   Target, AlertTriangle, Loader2, TrendingDown, Shield,
   Activity, Check, Clock, Home, Car, CreditCard, Calendar
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SERVER_URL } from '../utils/utils';
+
+const parseCurrency = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const sanitized = value.replace(/[₹,\s]/g, '');
+    const parsed = Number.parseFloat(sanitized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+const isSameMonth = (inputDate: string | null | undefined, target: Date): boolean => {
+  if (!inputDate) return false;
+  const date = new Date(inputDate);
+  return date.getFullYear() === target.getFullYear() && date.getMonth() === target.getMonth();
+};
+
+const getLastMonths = (count = 6): Date[] => {
+  const months: Date[] = [];
+  const current = new Date();
+  for (let i = count - 1; i >= 0; i -= 1) {
+    months.push(new Date(current.getFullYear(), current.getMonth() - i, 1));
+  }
+  return months;
+};
 
 interface Income {
   id: string;
@@ -63,6 +92,75 @@ interface Goal {
   icon: string;
 }
 
+const normalizeIncome = (doc: any): Income => ({
+  id: doc?.id ?? doc?._id ?? '',
+  source: doc?.source ?? '',
+  amount: parseCurrency(doc?.amount),
+  frequency: (doc?.frequency ?? 'monthly') as Income['frequency'],
+  category: doc?.category ?? 'other',
+  date: doc?.date ?? new Date().toISOString().split('T')[0],
+});
+
+const normalizeExpense = (doc: any): Expense => ({
+  id: doc?.id ?? doc?._id ?? '',
+  name: doc?.name ?? '',
+  amount: parseCurrency(doc?.amount),
+  frequency: (doc?.frequency ?? 'monthly') as Expense['frequency'],
+  category: doc?.category ?? 'other',
+  isEssential: Boolean(doc?.isEssential),
+  date: doc?.date ?? new Date().toISOString().split('T')[0],
+});
+
+const normalizeAsset = (doc: any): Asset => ({
+  id: doc?.id ?? doc?._id ?? '',
+  name: doc?.name ?? '',
+  value: parseCurrency(doc?.value),
+  category: doc?.category ?? 'other',
+});
+
+const normalizeLiability = (doc: any): Liability => ({
+  id: doc?.id ?? doc?._id ?? '',
+  name: doc?.name ?? '',
+  amount: parseCurrency(doc?.amount),
+  category: doc?.category ?? 'other',
+  monthlyPayment: doc?.monthlyPayment !== undefined ? parseCurrency(doc.monthlyPayment) : undefined,
+  interestRate: doc?.interestRate !== undefined ? parseCurrency(doc.interestRate) : undefined,
+});
+
+const normalizeGoal = (doc: any): Goal => ({
+  id: doc?.id ?? doc?._id ?? '',
+  name: doc?.name ?? '',
+  target: doc?.target ?? '0',
+  current: doc?.current ?? '0',
+  icon: doc?.icon ?? '🎯',
+});
+
+const getMonthlyIncomeValue = (entry: Income): number => {
+  switch (entry.frequency) {
+    case 'monthly':
+      return entry.amount;
+    case 'yearly':
+      return entry.amount / 12;
+    default:
+      return 0;
+  }
+};
+
+const getMonthlyExpenseValue = (entry: Expense): number => {
+  switch (entry.frequency) {
+    case 'monthly':
+      return entry.amount;
+    case 'yearly':
+      return entry.amount / 12;
+    case 'weekly':
+      return entry.amount * 4;
+    case 'daily':
+      return entry.amount * 30;
+    default:
+      return 0;
+  }
+};
+
 const Portfolio = () => {
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +171,7 @@ const Portfolio = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [showAllActivity, setShowAllActivity] = useState(false);
 
   // Fetch all financial data
   useEffect(() => {
@@ -92,27 +191,27 @@ const Portfolio = () => {
 
         if (incomeRes.ok) {
           const data = await incomeRes.json();
-          setIncome(data.income || []);
+          setIncome(Array.isArray(data.income) ? data.income.map(normalizeIncome) : []);
         }
-        
+
         if (expensesRes.ok) {
           const data = await expensesRes.json();
-          setExpenses(data.expenses || []);
+          setExpenses(Array.isArray(data.expenses) ? data.expenses.map(normalizeExpense) : []);
         }
-        
+
         if (assetsRes.ok) {
           const data = await assetsRes.json();
-          setAssets(data.assets || []);
+          setAssets(Array.isArray(data.assets) ? data.assets.map(normalizeAsset) : []);
         }
-        
+
         if (liabilitiesRes.ok) {
           const data = await liabilitiesRes.json();
-          setLiabilities(data.liabilities || []);
+          setLiabilities(Array.isArray(data.liabilities) ? data.liabilities.map(normalizeLiability) : []);
         }
-        
+
         if (goalsRes.ok) {
           const data = await goalsRes.json();
-          setGoals(data.goals || []);
+          setGoals(Array.isArray(data.goals) ? data.goals.map(normalizeGoal) : []);
         }
 
       } catch (error) {
@@ -125,114 +224,225 @@ const Portfolio = () => {
     fetchAllData();
   }, [user]);
 
-  // Financial calculations
-  const calculateMonthlyIncome = () => {
-    return income.reduce((sum, inc) => {
-      if (inc.frequency === 'monthly') return sum + inc.amount;
-      if (inc.frequency === 'yearly') return sum + (inc.amount / 12);
-      return sum;
-    }, 0);
-  };
+  const lastSixMonths = useMemo(() => getLastMonths(6), []);
 
-  const calculateMonthlyExpenses = () => {
-    return expenses.reduce((sum, exp) => {
-      if (exp.frequency === 'monthly') return sum + exp.amount;
-      if (exp.frequency === 'yearly') return sum + (exp.amount / 12);
-      if (exp.frequency === 'weekly') return sum + (exp.amount * 4);
-      if (exp.frequency === 'daily') return sum + (exp.amount * 30);
-      return sum;
-    }, 0);
-  };
+  const monthlyIncome = useMemo(
+    () => income.reduce((sum, inc) => sum + getMonthlyIncomeValue(inc), 0),
+    [income]
+  );
 
-  const totalAssets = assets.reduce((sum, asset) => sum + asset.value, 0);
-  const totalLiabilities = liabilities.reduce((sum, liability) => sum + liability.amount, 0);
-  const netWorth = totalAssets - totalLiabilities;
-  const monthlyIncome = calculateMonthlyIncome();
-  const monthlyExpenses = calculateMonthlyExpenses();
-  const monthlySavings = monthlyIncome - monthlyExpenses;
-  const savingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome) * 100 : 0;
+  const monthlyExpenses = useMemo(
+    () => expenses.reduce((sum, exp) => sum + getMonthlyExpenseValue(exp), 0),
+    [expenses]
+  );
 
-  // Diversification score (based on asset categories)
-  const assetCategories = new Set(assets.map(a => a.category)).size;
-  const diversificationScore = Math.min((assetCategories / 5) * 100, 100);
+  const { totalAssets, totalLiabilities, netWorth } = useMemo(() => {
+    const assetsTotal = assets.reduce((sum, asset) => sum + asset.value, 0);
+    const liabilitiesTotal = liabilities.reduce((sum, liability) => sum + liability.amount, 0);
+    return {
+      totalAssets: assetsTotal,
+      totalLiabilities: liabilitiesTotal,
+      netWorth: assetsTotal - liabilitiesTotal,
+    };
+  }, [assets, liabilities]);
 
-  // Risk score calculation
-  const calculateRiskScore = () => {
+  const monthlySavings = useMemo(() => monthlyIncome - monthlyExpenses, [monthlyIncome, monthlyExpenses]);
+
+  const savingsRate = useMemo(
+    () => (monthlyIncome > 0 ? (monthlySavings / monthlyIncome) * 100 : 0),
+    [monthlyIncome, monthlySavings]
+  );
+
+  const diversificationScore = useMemo(() => {
+    if (assets.length === 0) {
+      return 0;
+    }
+
+    const categories = new Set(assets.map((a) => a.category));
+    return Math.min((categories.size / 5) * 100, 100);
+  }, [assets]);
+
+  const riskScore = useMemo(() => {
     const debtToAssetRatio = totalAssets > 0 ? (totalLiabilities / totalAssets) * 100 : 0;
     const baseScore = 100 - debtToAssetRatio;
     const diversityBonus = diversificationScore * 0.2;
     return Math.max(Math.min(baseScore + diversityBonus, 100), 0);
-  };
+  }, [totalAssets, totalLiabilities, diversificationScore]);
 
-  const riskScore = calculateRiskScore();
+  const portfolioHealth = useMemo(
+    () => Math.round((riskScore + diversificationScore) / 2),
+    [riskScore, diversificationScore]
+  );
 
-  // Portfolio health (0-100)
-  const portfolioHealth = Math.round((riskScore + diversificationScore) / 2);
+  const assetsByCategory = useMemo(() => {
+    return assets.reduce((acc, asset) => {
+      acc[asset.category] = (acc[asset.category] || 0) + asset.value;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [assets]);
 
-  // Asset allocation data
-  const assetsByCategory = assets.reduce((acc, asset) => {
-    acc[asset.category] = (acc[asset.category] || 0) + asset.value;
-    return acc;
-  }, {} as Record<string, number>);
+  const assetAllocationData = useMemo(() => {
+    return Object.entries(assetsByCategory).map(([name, value]) => ({
+      name:
+        name === 'realestate'
+          ? 'Real Estate'
+          : name === 'investments'
+          ? 'Investments'
+          : name === 'vehicles'
+          ? 'Vehicles'
+          : name === 'bank'
+          ? 'Bank'
+          : name === 'cash'
+          ? 'Cash'
+          : 'Other',
+      value: Math.round(value),
+      percentage: totalAssets > 0 ? ((value / totalAssets) * 100).toFixed(1) : 0,
+    }));
+  }, [assetsByCategory, totalAssets]);
 
-  const assetAllocationData = Object.entries(assetsByCategory).map(([name, value]) => ({
-    name: name === 'realestate' ? 'Real Estate' :
-          name === 'investments' ? 'Investments' :
-          name === 'vehicles' ? 'Vehicles' :
-          name === 'bank' ? 'Bank' :
-          name === 'cash' ? 'Cash' : 'Other',
-    value: Math.round(value),
-    percentage: totalAssets > 0 ? ((value / totalAssets) * 100).toFixed(1) : 0
-  }));
+  const expensesByCategory = useMemo(() => {
+    return expenses.reduce((acc, exp) => {
+      const recurringAmount = getMonthlyExpenseValue(exp);
+      const oneTimeAmount = exp.frequency === 'one-time' && exp.date ? exp.amount : 0;
+      acc[exp.category] = (acc[exp.category] || 0) + recurringAmount + oneTimeAmount;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [expenses]);
 
-  // Expense breakdown
-  const expensesByCategory = expenses.reduce((acc, exp) => {
-    const monthlyAmount = exp.frequency === 'monthly' ? exp.amount :
-                         exp.frequency === 'yearly' ? exp.amount / 12 :
-                         exp.frequency === 'weekly' ? exp.amount * 4 :
-                         exp.frequency === 'daily' ? exp.amount * 30 : 0;
-    
-    acc[exp.category] = (acc[exp.category] || 0) + monthlyAmount;
-    return acc;
-  }, {} as Record<string, number>);
+  const expenseChartData = useMemo(() => {
+    return Object.entries(expensesByCategory).map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      value: Math.round(value),
+    }));
+  }, [expensesByCategory]);
 
-  const expenseChartData = Object.entries(expensesByCategory).map(([name, value]) => ({
-    name: name.charAt(0).toUpperCase() + name.slice(1),
-    value: Math.round(value)
-  }));
+  const activityItems = useMemo(() => {
+    const incomeActivities = income.map((entry) => ({
+      ...entry,
+      type: 'income' as const,
+    }));
 
-  // Income vs Expenses - Last 6 months simulation
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-  const incomeVsExpensesData = monthNames.map(month => ({
-    name: month,
-    income: monthlyIncome + (Math.random() * 1000 - 500),
-    expenses: monthlyExpenses + (Math.random() * 800 - 400),
-    savings: monthlySavings + (Math.random() * 600 - 300)
-  }));
+    const expenseActivities = expenses.map((entry) => ({
+      ...entry,
+      type: 'expense' as const,
+    }));
 
-  // Portfolio performance trend (simulated)
-  const performanceData = monthNames.map((month, index) => ({
-    name: month,
-    value: netWorth + (index * 5000) + (Math.random() * 3000)
-  }));
+    return [...incomeActivities, ...expenseActivities].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [income, expenses]);
 
-  // Risk analysis radar data
-  const riskAnalysisData = [
-    { metric: 'Volatility', value: Math.min(diversificationScore, 100) },
-    { metric: 'Liquidity', value: totalAssets > 0 ? Math.min((assets.filter(a => a.category === 'cash' || a.category === 'bank').reduce((s, a) => s + a.value, 0) / totalAssets) * 200, 100) : 50 },
-    { metric: 'Sharpe Ratio', value: savingsRate > 0 ? Math.min(savingsRate * 2, 100) : 30 },
-    { metric: 'Alpha', value: Math.random() * 40 + 30 },
-    { metric: 'Beta', value: Math.random() * 30 + 50 }
-  ];
+  const displayedActivity = useMemo(
+    () => (showAllActivity ? activityItems : activityItems.slice(0, 4)),
+    [activityItems, showAllActivity]
+  );
 
-  // Goal progress
-  const overallGoalProgress = goals.length > 0 
-    ? goals.reduce((sum, goal) => {
-        const current = parseFloat(goal.current.replace(/[₹,]/g, ''));
-        const target = parseFloat(goal.target.replace(/[₹,]/g, ''));
-        return sum + (target > 0 ? (current / target) * 100 : 0);
-      }, 0) / goals.length 
-    : 0;
+  const incomeVsExpensesData = useMemo(() => {
+    return lastSixMonths.map((date) => {
+      const monthIncomeTotal = income.reduce((sum, inc) => {
+        if (inc.frequency === 'one-time') {
+          return sum + (isSameMonth(inc.date, date) ? inc.amount : 0);
+        }
+        return sum + getMonthlyIncomeValue(inc);
+      }, 0);
+
+      const monthExpenseTotal = expenses.reduce((sum, exp) => {
+        if (exp.frequency === 'one-time') {
+          return sum + (isSameMonth(exp.date, date) ? exp.amount : 0);
+        }
+        return sum + getMonthlyExpenseValue(exp);
+      }, 0);
+
+      return {
+        name: date.toLocaleString('default', { month: 'short' }),
+        income: Math.max(0, Math.round(monthIncomeTotal)),
+        expenses: Math.max(0, Math.round(monthExpenseTotal)),
+        savings: Math.round(monthIncomeTotal - monthExpenseTotal),
+      };
+    });
+  }, [lastSixMonths, income, expenses]);
+
+  const performanceData = useMemo(() => {
+    if (incomeVsExpensesData.length === 0) {
+      return [];
+    }
+
+    const totalNetFlow = incomeVsExpensesData.reduce(
+      (sum, item) => sum + (item.income - item.expenses),
+      0
+    );
+
+    let cumulativeFlow = 0;
+    const baseline = netWorth - totalNetFlow;
+
+    return incomeVsExpensesData.map((item) => {
+      cumulativeFlow += item.income - item.expenses;
+      return {
+        name: item.name,
+        value: Math.max(baseline + cumulativeFlow, 0),
+      };
+    });
+  }, [incomeVsExpensesData, netWorth]);
+
+  const riskAnalysisData = useMemo(() => {
+    const liquidAssetsValue = assets
+      .filter((asset) => asset.category === 'cash' || asset.category === 'bank')
+      .reduce((sum, asset) => sum + asset.value, 0);
+
+    const liquidityScore = totalAssets > 0 ? Math.min((liquidAssetsValue / totalAssets) * 100, 100) : 50;
+    const sharpeRatio = savingsRate > 0 ? Math.min(savingsRate * 2, 100) : 30;
+    const alpha = Math.min(Math.max(50 + (monthlySavings / Math.max(monthlyExpenses, 1)) * 10, 0), 100);
+    const beta = Math.min(Math.max(80 - diversificationScore / 2, 0), 100);
+
+    return [
+      { metric: 'Volatility', value: Math.min(diversificationScore, 100) },
+      { metric: 'Liquidity', value: liquidityScore },
+      { metric: 'Sharpe Ratio', value: sharpeRatio },
+      { metric: 'Alpha', value: alpha },
+      { metric: 'Beta', value: beta },
+    ];
+  }, [assets, totalAssets, diversificationScore, savingsRate, monthlySavings, monthlyExpenses]);
+
+  const overallGoalProgress = useMemo(() => {
+    if (goals.length === 0) {
+      return 0;
+    }
+
+    const totalProgress = goals.reduce((sum, goal) => {
+      const current = parseCurrency(goal.current);
+      const target = parseCurrency(goal.target);
+      return sum + (target > 0 ? (current / target) * 100 : 0);
+    }, 0);
+
+    return totalProgress / goals.length;
+  }, [goals]);
+
+  const topExpenseCategory = useMemo(() => {
+    if (expenseChartData.length === 0) {
+      return null;
+    }
+
+    return expenseChartData.reduce((largest, current) =>
+      current.value > largest.value ? current : largest
+    );
+  }, [expenseChartData]);
+
+  const monthOverMonthChange = useMemo(() => {
+    if (incomeVsExpensesData.length < 2) {
+      return null;
+    }
+
+    const previous = incomeVsExpensesData[incomeVsExpensesData.length - 2];
+    const latest = incomeVsExpensesData[incomeVsExpensesData.length - 1];
+    const previousNet = previous.income - previous.expenses;
+    const latestNet = latest.income - latest.expenses;
+
+    if (previousNet === 0) {
+      return null;
+    }
+
+    return ((latestNet - previousNet) / Math.abs(previousNet)) * 100;
+  }, [incomeVsExpensesData]);
 
   const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 
@@ -272,8 +482,23 @@ const Portfolio = () => {
           </div>
           <p className="text-4xl font-bold mb-2">₹{netWorth.toLocaleString('en-IN')}</p>
           <div className="flex items-center gap-2 text-sm">
-            <TrendingDown className="w-4 h-4" />
-            <span>-23.15% vs last month</span>
+            {monthOverMonthChange !== null ? (
+              <>
+                {monthOverMonthChange >= 0 ? (
+                  <TrendingUp className="w-4 h-4 text-green-200" />
+                ) : (
+                  <TrendingDown className="w-4 h-4 text-red-200" />
+                )}
+                <span className={monthOverMonthChange >= 0 ? 'text-green-100' : 'text-red-100'}>
+                  {monthOverMonthChange >= 0 ? '+' : ''}{monthOverMonthChange.toFixed(1)}% vs previous month
+                </span>
+              </>
+            ) : (
+              <>
+                <Clock className="w-4 h-4 text-white/70" />
+                <span className="text-white/80">No previous month data</span>
+              </>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/20">
             <div>
@@ -346,6 +571,18 @@ const Portfolio = () => {
           className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
         >
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Portfolio Health</h3>
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Overall Health</span>
+              <span className="text-xl font-bold text-gray-900 dark:text-white">{portfolioHealth}/100</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div
+                className="bg-gradient-to-r from-emerald-500 to-green-500 h-2 rounded-full transition-all"
+                style={{ width: `${portfolioHealth}%` }}
+              />
+            </div>
+          </div>
           
           {/* Diversification Score */}
           <div className="mb-4">
@@ -465,6 +702,11 @@ const Portfolio = () => {
           </div>
           <p className="text-sm opacity-90 mb-1">Savings Rate</p>
           <p className="text-3xl font-bold">₹{monthlySavings.toLocaleString('en-IN')}</p>
+          {topExpenseCategory && (
+            <p className="text-xs opacity-80 mt-2">
+              Biggest expense: {topExpenseCategory.name} (₹{topExpenseCategory.value.toLocaleString('en-IN')}/mo)
+            </p>
+          )}
         </motion.div>
       </div>
 
@@ -724,24 +966,32 @@ const Portfolio = () => {
       >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">Recent Activity</h3>
-          <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
-            View All
-          </button>
+          {activityItems.length > 4 && (
+            <button
+              onClick={() => setShowAllActivity((prev) => !prev)}
+              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              {showAllActivity ? 'Show Less' : 'View All'}
+            </button>
+          )}
         </div>
         <div className="space-y-3">
-          {/* Generate recent activity from income and expenses */}
-          {[...income.slice(0, 2), ...expenses.slice(0, 2)]
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 4)
-            .map((item, index) => {
-              const isIncome = 'source' in item;
+          {displayedActivity.length > 0 ? (
+            displayedActivity.map((item) => {
+              const isIncome = item.type === 'income';
+              const name = isIncome ? item.source : item.name;
+              const amountLabel = `${isIncome ? '+' : '-'}₹${item.amount.toLocaleString('en-IN')}`;
+
               return (
-                <div key={index} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors">
+                <div
+                  key={`${item.type}-${item.id}`}
+                  className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full ${isIncome ? 'bg-green-500' : 'bg-red-500'}`} />
                     <div>
                       <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                        {isIncome ? (item as Income).source : (item as Expense).name}
+                        {name}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                         <Calendar className="w-3 h-3" />
@@ -755,19 +1005,27 @@ const Portfolio = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <p className={`font-bold ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {isIncome ? '+' : '-'}₹{item.amount.toLocaleString('en-IN')}
+                      {amountLabel}
                     </p>
-                    <div className={`px-2 py-1 rounded text-xs ${
-                      isIncome 
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                    }`}>
+                    <div
+                      className={`px-2 py-1 rounded text-xs ${
+                        isIncome
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                      }`}
+                    >
                       Completed
                     </div>
                   </div>
                 </div>
               );
-            })}
+            })
+          ) : (
+            <div className="flex flex-col items-center justify-center py-6 text-gray-500 dark:text-gray-400">
+              <Activity className="w-8 h-8 mb-2 opacity-60" />
+              <p>No recent activity recorded</p>
+            </div>
+          )}
         </div>
       </motion.div>
 

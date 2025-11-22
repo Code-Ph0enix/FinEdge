@@ -105,13 +105,14 @@ class IncomeSchema:
         required = ["clerkUserId", "source", "amount", "frequency", "category"]
         valid_frequencies = ["monthly", "yearly", "one-time"]
         valid_categories = ["salary", "investment", "gift", "other"]
+        amount = data.get("amount")
         
         return (
             all(field in data for field in required) and
             data.get("frequency") in valid_frequencies and
             data.get("category") in valid_categories and
-            isinstance(data.get("amount"), (int, float)) and
-            data.get("amount") >= 0
+            isinstance(amount, (int, float)) and
+            amount >= 0
         )
 
 
@@ -161,13 +162,14 @@ class ExpenseSchema:
         required = ["clerkUserId", "name", "amount", "category", "frequency"]
         valid_frequencies = ["daily", "weekly", "monthly", "yearly", "one-time"]
         valid_categories = ["shopping", "housing", "transport", "food", "health", "travel", "utilities", "other"]
+        amount = data.get("amount")
         
         return (
             all(field in data for field in required) and
             data.get("frequency") in valid_frequencies and
             data.get("category") in valid_categories and
-            isinstance(data.get("amount"), (int, float)) and
-            data.get("amount") >= 0
+            isinstance(amount, (int, float)) and
+            amount >= 0
         )
 
 
@@ -216,12 +218,13 @@ class AssetSchema:
         """Validate asset entry data"""
         required = ["clerkUserId", "name", "value", "category"]
         valid_categories = ["realestate", "investments", "vehicles", "bank", "cash", "other"]
+        value = data.get("value")
         
         return (
             all(field in data for field in required) and
             data.get("category") in valid_categories and
-            isinstance(data.get("value"), (int, float)) and
-            data.get("value") >= 0
+            isinstance(value, (int, float)) and
+            value >= 0
         )
 
 
@@ -273,12 +276,13 @@ class LiabilitySchema:
         """Validate liability entry data"""
         required = ["clerkUserId", "name", "amount", "category"]
         valid_categories = ["homeloan", "carloan", "personalloan", "creditcard", "education", "other"]
+        amount = data.get("amount")
         
         return (
             all(field in data for field in required) and
             data.get("category") in valid_categories and
-            isinstance(data.get("amount"), (int, float)) and
-            data.get("amount") >= 0
+            isinstance(amount, (int, float)) and
+            amount >= 0
         )
 
 
@@ -301,7 +305,9 @@ def serialize_document(doc: Dict[str, Any]) -> Dict[str, Any]:
     
     # Convert ObjectId to string
     if "_id" in doc:
-        doc["_id"] = str(doc["_id"])
+        doc_id = str(doc["_id"])
+        doc["_id"] = doc_id
+        doc.setdefault("id", doc_id)
     
     # Convert datetime objects to ISO format strings
     for key, value in doc.items():

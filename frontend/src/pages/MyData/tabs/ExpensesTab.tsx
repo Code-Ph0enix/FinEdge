@@ -22,6 +22,19 @@ interface Expense {
   isEssential: boolean;
 }
 
+const normalizeExpense = (doc: any): Expense => ({
+  id: doc?.id ?? doc?._id ?? '',
+  name: doc?.name ?? '',
+  amount:
+    typeof doc?.amount === 'number'
+      ? doc.amount
+      : Number.parseFloat(doc?.amount ?? '0') || 0,
+  category: (doc?.category ?? 'other') as Expense['category'],
+  frequency: (doc?.frequency ?? 'monthly') as Expense['frequency'],
+  date: doc?.date ?? new Date().toISOString().split('T')[0],
+  isEssential: Boolean(doc?.isEssential),
+});
+
 const categoryIcons = {
   shopping: ShoppingCart,
   housing: Home,
@@ -77,7 +90,10 @@ export const ExpensesTab = () => {
 
         if (response.ok) {
           const data = await response.json();
-          setExpenses(data.expenses || []);
+          const normalized = (data.expenses || [])
+            .map(normalizeExpense)
+            .filter((expense: Expense) => Boolean(expense.id));
+          setExpenses(normalized);
         } else {
           console.error('Failed to fetch expenses data');
         }
@@ -94,28 +110,29 @@ export const ExpensesTab = () => {
   const handleAdd = async () => {
     if (!user?.id) return;
 
-    const newExpense: Expense = {
-      id: `expense_${Date.now()}`,
-      name: formData.name,
-      amount: parseFloat(formData.amount),
-      category: formData.category as any,
-      frequency: formData.frequency as any,
-      date: formData.date,
-      isEssential: formData.isEssential
-    };
-
     try {
+      const amountValue = Number.parseFloat(formData.amount);
+      const amount = Number.isNaN(amountValue) ? 0 : amountValue;
+
       const response = await fetch(`${SERVER_URL}/api/user-profile/expenses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clerkUserId: user.id,
-          ...newExpense
+          name: formData.name,
+          amount,
+          category: formData.category,
+          frequency: formData.frequency,
+          date: formData.date,
+          isEssential: formData.isEssential,
         }),
       });
 
       if (response.ok) {
-        setExpenses([...expenses, newExpense]);
+        const result = await response.json();
+        if (result?.expense) {
+          setExpenses((prev) => [...prev, normalizeExpense(result.expense)]);
+        }
         setIsModalOpen(false);
         resetForm();
       } else {
@@ -129,33 +146,41 @@ export const ExpensesTab = () => {
   const handleEdit = async () => {
     if (!selectedExpense || !user?.id) return;
 
-    const updatedExpense: Expense = {
-      id: selectedExpense,
-      name: formData.name,
-      amount: parseFloat(formData.amount),
-      category: formData.category as any,
-      frequency: formData.frequency as any,
-      date: formData.date,
-      isEssential: formData.isEssential
-    };
-
     try {
-      const response = await fetch(
-        `${SERVER_URL}/api/user-profile/expenses/${selectedExpense}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clerkUserId: user.id,
-            ...updatedExpense
-          }),
-        }
-      );
+      const amountValue = Number.parseFloat(formData.amount);
+      const amount = Number.isNaN(amountValue) ? 0 : amountValue;
+
+      const response = await fetch(`${SERVER_URL}/api/user-profile/expenses`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clerkUserId: user.id,
+          _id: selectedExpense,
+          name: formData.name,
+          amount,
+          category: formData.category,
+          frequency: formData.frequency,
+          date: formData.date,
+          isEssential: formData.isEssential,
+        }),
+      });
 
       if (response.ok) {
-        setExpenses(expenses.map(exp => 
-          exp.id === selectedExpense ? updatedExpense : exp
-        ));
+        setExpenses((prev) =>
+          prev.map((expense) =>
+            expense.id === selectedExpense
+              ? {
+                  ...expense,
+                  name: formData.name,
+                  amount,
+                  category: formData.category as Expense['category'],
+                  frequency: formData.frequency as Expense['frequency'],
+                  date: formData.date,
+                  isEssential: formData.isEssential,
+                }
+              : expense
+          )
+        );
         setIsModalOpen(false);
         setIsEditing(false);
         resetForm();
@@ -168,18 +193,18 @@ export const ExpensesTab = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!user?.id || !confirm('Are you sure you want to delete this expense?')) return;
+    if (!user?.id || !id || !confirm('Are you sure you want to delete this expense?')) return;
 
     try {
       const response = await fetch(
-        `${SERVER_URL}/api/user-profile/expenses/${id}?clerkUserId=${user.id}`,
+        `${SERVER_URL}/api/user-profile/expenses?clerkUserId=${user.id}&entryId=${id}`,
         {
           method: 'DELETE',
         }
       );
 
       if (response.ok) {
-        setExpenses(expenses.filter(exp => exp.id !== id));
+        setExpenses((prev) => prev.filter((expense) => expense.id !== id));
       } else {
         console.error('Failed to delete expense');
       }

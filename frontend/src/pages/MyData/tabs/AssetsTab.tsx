@@ -22,6 +22,24 @@ interface Asset {
   notes?: string;
 }
 
+const normalizeAsset = (doc: any): Asset => ({
+  id: doc?.id ?? doc?._id ?? '',
+  name: doc?.name ?? '',
+  value:
+    typeof doc?.value === 'number'
+      ? doc.value
+      : Number.parseFloat(doc?.value ?? '0') || 0,
+  category: (doc?.category ?? 'other') as Asset['category'],
+  purchaseDate: doc?.purchaseDate ?? undefined,
+  appreciationRate:
+    typeof doc?.appreciationRate === 'number'
+      ? doc.appreciationRate
+      : doc?.appreciationRate
+      ? Number.parseFloat(doc.appreciationRate)
+      : undefined,
+  notes: doc?.notes ?? undefined,
+});
+
 const categoryIcons = {
   realestate: Building2,
   investments: Briefcase,
@@ -82,7 +100,10 @@ export const AssetsTab = () => {
 
         if (response.ok) {
           const data = await response.json();
-          setAssets(data.assets || []);
+          const normalized = (data.assets || [])
+            .map(normalizeAsset)
+            .filter((asset: Asset) => Boolean(asset.id));
+          setAssets(normalized);
         } else {
           console.error('Failed to fetch assets data');
         }
@@ -99,28 +120,36 @@ export const AssetsTab = () => {
   const handleAdd = async () => {
     if (!user?.id) return;
 
-    const newAsset: Asset = {
-      id: `asset_${Date.now()}`,
-      name: formData.name,
-      value: parseFloat(formData.value),
-      category: formData.category as any,
-      purchaseDate: formData.purchaseDate || undefined,
-      appreciationRate: formData.appreciationRate ? parseFloat(formData.appreciationRate) : undefined,
-      notes: formData.notes || undefined
-    };
-
     try {
+      const valueRaw = Number.parseFloat(formData.value);
+      const value = Number.isNaN(valueRaw) ? 0 : valueRaw;
+      const appreciationRaw = formData.appreciationRate
+        ? Number.parseFloat(formData.appreciationRate)
+        : undefined;
+      const appreciationRate =
+        appreciationRaw !== undefined && !Number.isNaN(appreciationRaw)
+          ? appreciationRaw
+          : undefined;
+
       const response = await fetch(`${SERVER_URL}/api/user-profile/assets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clerkUserId: user.id,
-          ...newAsset
+          name: formData.name,
+          value,
+          category: formData.category,
+          purchaseDate: formData.purchaseDate || null,
+          appreciationRate: appreciationRate ?? null,
+          notes: formData.notes || null,
         }),
       });
 
       if (response.ok) {
-        setAssets([...assets, newAsset]);
+        const result = await response.json();
+        if (result?.asset) {
+          setAssets((prev) => [...prev, normalizeAsset(result.asset)]);
+        }
         setIsModalOpen(false);
         resetForm();
       } else {
@@ -134,33 +163,48 @@ export const AssetsTab = () => {
   const handleEdit = async () => {
     if (!selectedAsset || !user?.id) return;
 
-    const updatedAsset: Asset = {
-      id: selectedAsset,
-      name: formData.name,
-      value: parseFloat(formData.value),
-      category: formData.category as any,
-      purchaseDate: formData.purchaseDate || undefined,
-      appreciationRate: formData.appreciationRate ? parseFloat(formData.appreciationRate) : undefined,
-      notes: formData.notes || undefined
-    };
-
     try {
-      const response = await fetch(
-        `${SERVER_URL}/api/user-profile/assets/${selectedAsset}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clerkUserId: user.id,
-            ...updatedAsset
-          }),
-        }
-      );
+      const valueRaw = Number.parseFloat(formData.value);
+      const value = Number.isNaN(valueRaw) ? 0 : valueRaw;
+      const appreciationRaw = formData.appreciationRate
+        ? Number.parseFloat(formData.appreciationRate)
+        : undefined;
+      const appreciationRate =
+        appreciationRaw !== undefined && !Number.isNaN(appreciationRaw)
+          ? appreciationRaw
+          : undefined;
+
+      const response = await fetch(`${SERVER_URL}/api/user-profile/assets`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clerkUserId: user.id,
+          _id: selectedAsset,
+          name: formData.name,
+          value,
+          category: formData.category,
+          purchaseDate: formData.purchaseDate || null,
+          appreciationRate: appreciationRate ?? null,
+          notes: formData.notes || null,
+        }),
+      });
 
       if (response.ok) {
-        setAssets(assets.map(asset => 
-          asset.id === selectedAsset ? updatedAsset : asset
-        ));
+        setAssets((prev) =>
+          prev.map((asset) =>
+            asset.id === selectedAsset
+              ? {
+                  ...asset,
+                  name: formData.name,
+                  value,
+                  category: formData.category as Asset['category'],
+                  purchaseDate: formData.purchaseDate || undefined,
+                  appreciationRate,
+                  notes: formData.notes || undefined,
+                }
+              : asset
+          )
+        );
         setIsModalOpen(false);
         setIsEditing(false);
         resetForm();
@@ -173,18 +217,18 @@ export const AssetsTab = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!user?.id || !confirm('Are you sure you want to delete this asset?')) return;
+    if (!user?.id || !id || !confirm('Are you sure you want to delete this asset?')) return;
 
     try {
       const response = await fetch(
-        `${SERVER_URL}/api/user-profile/assets/${id}?clerkUserId=${user.id}`,
+        `${SERVER_URL}/api/user-profile/assets?clerkUserId=${user.id}&entryId=${id}`,
         {
           method: 'DELETE',
         }
       );
 
       if (response.ok) {
-        setAssets(assets.filter(asset => asset.id !== id));
+        setAssets((prev) => prev.filter((asset) => asset.id !== id));
       } else {
         console.error('Failed to delete asset');
       }

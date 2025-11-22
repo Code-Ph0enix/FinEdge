@@ -48,6 +48,7 @@ from models import (
     AssetSchema, LiabilitySchema, serialize_document,
     calculate_net_worth, calculate_monthly_cash_flow
 )
+from calculators import build_asset_growth_response
 from bson import ObjectId
 # ADD this import near other imports
 from gemini_recommendations import get_personalized_recommendations
@@ -1034,6 +1035,54 @@ def get_user_profile():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/calculators/asset-growth', methods=['GET'])
+def get_asset_growth_projection():
+    """Return aggregated projections for the asset growth calculators."""
+    try:
+        clerk_user_id = request.args.get('clerkUserId')
+
+        if not clerk_user_id:
+            return jsonify({'error': 'clerkUserId is required'}), 400
+
+        db = get_database()
+        assets = list(db[Collections.ASSETS].find({"clerkUserId": clerk_user_id}))
+        incomes = list(db[Collections.INCOME].find({"clerkUserId": clerk_user_id}))
+        expenses = list(db[Collections.EXPENSES].find({"clerkUserId": clerk_user_id}))
+        profile = db[Collections.USER_PROFILES].find_one(
+            {"clerkUserId": clerk_user_id},
+            {"calculatorPreferences": 1},
+        )
+        calculator_preferences = profile.get("calculatorPreferences") if profile else None
+
+        if not assets:
+            return jsonify({
+                'clerkUserId': clerk_user_id,
+                'generatedAt': datetime.utcnow().isoformat(),
+                'instruments': [],
+                'summary': {
+                    'assetValue': 0.0,
+                    'monthlyIncome': 0.0,
+                    'monthlyExpenses': 0.0,
+                    'monthlySavings': 0.0,
+                },
+                'message': 'No assets found for the requested user.',
+            }), 200
+
+        response_payload = build_asset_growth_response(
+            clerk_user_id=clerk_user_id,
+            assets=assets,
+            incomes=incomes,
+            expenses=expenses,
+            user_preferences=calculator_preferences,
+        )
+
+        return jsonify(response_payload)
+
+    except Exception as exc:
+        logger.error(f"Error generating asset growth projection: {exc}")
+        return jsonify({'error': 'Internal server error', 'details': str(exc)}), 500
+
+
 # ==================== INDIVIDUAL ENTRY CRUD ENDPOINTS ====================
 
 @app.route('/api/user-profile/income', methods=['GET', 'POST', 'PUT', 'DELETE'])
@@ -1159,7 +1208,12 @@ def manage_expenses():
 def manage_assets():
     """CRUD operations for asset entries"""
     try:
-        clerk_user_id = request.args.get('clerkUserId') or request.json.get('clerkUserId')
+        clerk_user_id = request.args.get('clerkUserId')
+        data = None
+        if request.is_json:
+            data = request.get_json(silent=True)
+        if not clerk_user_id and data:
+            clerk_user_id = data.get('clerkUserId')
         
         if not clerk_user_id:
             return jsonify({'error': 'clerkUserId is required'}), 400
@@ -1171,19 +1225,28 @@ def manage_assets():
             return jsonify({'assets': [serialize_document(doc) for doc in assets]})
         
         elif request.method == 'POST':
-            data = request.json
-            asset_doc = AssetSchema.create(
-                clerk_user_id=clerk_user_id,
-                name=data['name'],
-                value=data['value'],
-                category=data['category'],
-                purchase_date=data.get('purchaseDate'),
-                appreciation_rate=data.get('appreciationRate'),
-                notes=data.get('notes')
-            )
-            result = db[Collections.ASSETS].insert_one(asset_doc)
-            asset_doc['_id'] = result.inserted_id
-            return jsonify({'success': True, 'asset': serialize_document(asset_doc)}), 201
+            if not data:
+                return jsonify({'error': 'Missing or invalid JSON body'}), 400
+            try:
+                asset_doc = AssetSchema.create(
+                    clerk_user_id=clerk_user_id,
+                    name=data.get('name'),
+                    value=data.get('value'),
+                    category=data.get('category'),
+                    purchase_date=data.get('purchaseDate'),
+                    appreciation_rate=data.get('appreciationRate'),
+                    notes=data.get('notes')
+                )
+            except Exception as e:
+                logger.error(f"AssetSchema.create failed: {e}. Data: {data}")
+                return jsonify({'error': f'AssetSchema.create failed: {str(e)}', 'data': data}), 400
+            try:
+                result = db[Collections.ASSETS].insert_one(asset_doc)
+                asset_doc['_id'] = result.inserted_id
+                return jsonify({'success': True, 'asset': serialize_document(asset_doc)}), 201
+            except Exception as e:
+                logger.error(f"MongoDB insert_one failed: {e}. Asset doc: {asset_doc}")
+                return jsonify({'error': f'MongoDB insert_one failed: {str(e)}', 'asset_doc': asset_doc}), 500
         
         elif request.method == 'PUT':
             data = request.json
