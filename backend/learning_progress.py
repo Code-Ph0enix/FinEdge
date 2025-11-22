@@ -2,6 +2,9 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from pydantic import BaseModel, Field
 from bson import ObjectId
+from pydantic import GetJsonSchemaHandler
+from pydantic.json_schema import JsonSchemaValue
+
 import pymongo
 from database import get_database
 
