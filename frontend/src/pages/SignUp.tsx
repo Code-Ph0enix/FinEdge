@@ -12,7 +12,7 @@ const ClerkSignUpPage = () => {
             rootBox: "w-full max-w-md",
             card: "shadow-xl rounded-xl",
             headerTitle: "text-2xl font-bold",
-            headerSubtitle: "text-gray-500",
+            headerSubtitle: "text-gray-500 dark:text-gray-400",
             formButtonPrimary: "bg-indigo-600 hover:bg-indigo-700 w-full",
             socialButtonsBlockButton: "w-full",
           }

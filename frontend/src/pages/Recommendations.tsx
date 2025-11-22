@@ -289,7 +289,7 @@ const Recommendations: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
         <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
-          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <AlertCircle className="h-16 w-16 text-red-500 dark:text-red-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
             Something Went Wrong
           </h3>
@@ -297,7 +297,7 @@ const Recommendations: React.FC = () => {
           <button
             onClick={() => generateRecommendations(true)}
             disabled={generating}
-            className="w-full px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+            className="w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all disabled:opacity-50"
           >
             {generating ? 'Generating...' : 'Try Again'}
           </button>
@@ -326,7 +326,7 @@ const Recommendations: React.FC = () => {
           <button
             onClick={() => generateRecommendations(true)}
             disabled={generating}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
           >
             <RefreshCw className={`h-5 w-5 ${generating ? 'animate-spin' : ''}`} />
             {generating ? 'Refreshing...' : 'Refresh Recommendations'}
@@ -421,7 +421,7 @@ const Recommendations: React.FC = () => {
                       onClick={() => setActiveFilter(id)}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${
                         activeFilter === id
-                          ? 'bg-indigo-600 text-white shadow-lg scale-105'
+                          ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg scale-105'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
@@ -452,7 +452,7 @@ const Recommendations: React.FC = () => {
                     onClick={() => setRiskFilter(risk)}
                     className={`px-4 py-2.5 rounded-lg font-medium transition-all whitespace-nowrap ${
                       riskFilter === risk
-                        ? 'bg-indigo-600 text-white shadow-lg scale-105'
+                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg scale-105'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
@@ -976,7 +976,7 @@ const Recommendations: React.FC = () => {
                 setActiveFilter('all');
                 setRiskFilter('all');
               }}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors"
+              className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all"
             >
               Reset Filters
             </button>

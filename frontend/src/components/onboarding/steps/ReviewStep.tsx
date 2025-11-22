@@ -200,7 +200,7 @@ const ReviewStep: React.FC = () => {
               </div>
             ))}
             {data.expenses.length > 5 && (
-              <p className="text-xs text-gray-500">And {data.expenses.length - 5} more...</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>And {data.expenses.length - 5} more...</p>
             )}
           </div>
         </div>

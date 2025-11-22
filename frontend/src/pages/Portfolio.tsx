@@ -451,7 +451,7 @@ const Portfolio = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 dark:text-indigo-400 mx-auto mb-4" />
           <p className="text-gray-600 dark:text-gray-400">Loading your financial dashboard...</p>
         </div>
       </div>
@@ -546,7 +546,7 @@ const Portfolio = () => {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-gray-400">
+            <div className="h-[200px] flex items-center justify-center text-gray-400 dark:text-gray-500">
               No assets
             </div>
           )}
@@ -639,7 +639,7 @@ const Portfolio = () => {
         >
           <div className="flex items-center justify-between mb-4">
             <TrendingUp className="w-8 h-8 text-green-600 dark:text-green-400" />
-            <Activity className="w-5 h-5 text-gray-400" />
+            <Activity className="w-5 h-5 text-gray-400 dark:text-gray-500" />
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Monthly Returns</p>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -657,7 +657,7 @@ const Portfolio = () => {
         >
           <div className="flex items-center justify-between mb-4">
             <Shield className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
-            <AlertTriangle className="w-5 h-5 text-gray-400" />
+            <AlertTriangle className="w-5 h-5 text-gray-400 dark:text-gray-500" />
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Risk Score</p>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">{riskScore.toFixed(0)}/100</p>
@@ -678,7 +678,7 @@ const Portfolio = () => {
         >
           <div className="flex items-center justify-between mb-4">
             <Target className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-            <Check className="w-5 h-5 text-gray-400" />
+            <Check className="w-5 h-5 text-gray-400 dark:text-gray-300" />
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Goal Progress</p>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">{overallGoalProgress.toFixed(1)}%</p>
