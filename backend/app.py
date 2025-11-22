@@ -96,7 +96,7 @@ try:
         get_session_info,  # NEW - Session metadata
         cleanup_old_sessions  # NEW - Automatic cleanup
     )
-    import backend.financial_journey as financial_journey
+    import financial_journey as financial_journey
     logger.info("AI Financial Advisor module loaded successfully")
 except ImportError as e:
     logging.warning(f"Could not import AI modules: {e}")
@@ -2060,7 +2060,7 @@ def generate_recommendations_endpoint():
     Called when no cache exists or when refresh=true.
     """
     try:
-        from backend.recommendations import RecommendationEngine
+        from recommendations import RecommendationEngine
         db = get_database()
 
         clerk_user_id = request.json.get("clerkUserId")
