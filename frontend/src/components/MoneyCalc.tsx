@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -9,14 +9,19 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { TrendingUp, Plus, X } from "lucide-react";
+import { TrendingUp, Plus, X, Loader } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
 
 interface Asset {
-  id: number;
+  _id?: string;
   name: string;
-  currentValue: number;
-  expectedReturn: number;
-  quantity: number;
+  value: number;  // MongoDB uses 'value' not 'currentValue'
+  category: string;
+  appreciationRate?: number;  // MongoDB uses 'appreciationRate' not 'expectedReturn'
+  purchaseDate?: string;
+  notes?: string;
 }
 
 interface CalculatorProps {
@@ -68,44 +73,44 @@ const Modal = ({
 };
 
 const MoneyCalc = () => {
+  const { user } = useUser();
   const [timeframe, setTimeframe] = useState<number>(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [assets, setAssets] = useState<Asset[]>([
-    {
-      id: 1,
-      name: "Stocks",
-      currentValue: 100000,
-      expectedReturn: 12,
-      quantity: 10,
-    },
-    {
-      id: 2,
-      name: "Mutual Funds",
-      currentValue: 200000,
-      expectedReturn: 10,
-      quantity: 10,
-    },
-    {
-      id: 3,
-      name: "Gold",
-      currentValue: 150000,
-      expectedReturn: 8,
-      quantity: 50,
-    },
-    {
-      id: 4,
-      name: "Real Estate",
-      currentValue: 5000000,
-      expectedReturn: 15,
-      quantity: 1,
-    },
-  ]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [newAsset, setNewAsset] = useState<Partial<Asset>>({
     name: "",
-    currentValue: 0,
-    expectedReturn: 0,
-    quantity: 0,
+    value: 0,
+    appreciationRate: 0,
+    category: "Other",
   });
+
+  // Fetch user assets from MongoDB
+  useEffect(() => {
+    const fetchAssets = async () => {
+      if (!user?.id) return;
+
+      try {
+        setIsLoading(true);
+        const response = await fetch(`${SERVER_URL}/api/user-profile/assets?clerkUserId=${user.id}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setAssets(data.assets || []);
+        } else {
+          setError('Failed to fetch assets');
+        }
+      } catch (error) {
+        console.error('Error fetching assets:', error);
+        setError('Failed to load assets');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAssets();
+  }, [user]);
 
   const calculateFutureValue = (
     currentValue: number,
@@ -116,6 +121,23 @@ const MoneyCalc = () => {
     return currentValue * Math.pow(1 + annualRate, years);
   };
 
+  const getAssetExpectedReturn = (asset: Asset): number => {
+    // Use appreciationRate if available, otherwise default based on category
+    if (asset.appreciationRate) return asset.appreciationRate;
+    
+    // Default returns by category
+    const defaultReturns: { [key: string]: number } = {
+      'Stocks': 12,
+      'Mutual Funds': 10,
+      'Real Estate': 8,
+      'Fixed Deposit': 6,
+      'Gold': 7,
+      'Other': 8
+    };
+    
+    return defaultReturns[asset.category] || 8;
+  };
+
   const generateGraphData = () => {
     const data = [];
     for (let year = 0; year <= timeframe; year++) {
@@ -123,9 +145,10 @@ const MoneyCalc = () => {
       let totalValue = 0;
       
       assets.forEach((asset) => {
+        const expectedReturn = getAssetExpectedReturn(asset);
         const futureValue = calculateFutureValue(
-          asset.currentValue * asset.quantity,
-          asset.expectedReturn,
+          asset.value,
+          expectedReturn,
           year
         );
         yearData[asset.name] = futureValue;
@@ -138,33 +161,64 @@ const MoneyCalc = () => {
     return data;
   };
 
-  const addAsset = () => {
-    if (
-      newAsset.name &&
-      newAsset.currentValue &&
-      newAsset.expectedReturn &&
-      newAsset.quantity
-    ) {
-      setAssets([
-        ...assets,
-        {
-        id: assets.length + 1,
-        name: newAsset.name,
-        currentValue: newAsset.currentValue,
-        expectedReturn: newAsset.expectedReturn,
-          quantity: newAsset.quantity,
-        },
-      ]);
-      setNewAsset({
-        name: "",
-        currentValue: 0,
-        expectedReturn: 0,
-        quantity: 0,
+  const addAsset = async () => {
+    if (!user?.id || !newAsset.name || !newAsset.value || !newAsset.category) return;
+
+    try {
+      const response = await fetch(`${SERVER_URL}/api/user-profile/assets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clerkUserId: user.id,
+          name: newAsset.name,
+          value: newAsset.value,
+          category: newAsset.category,
+          appreciationRate: newAsset.appreciationRate || getAssetExpectedReturn({ category: newAsset.category } as Asset),
+          notes: newAsset.notes || ''
+        })
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAssets([...assets, data.asset]);
+        setNewAsset({
+          name: "",
+          value: 0,
+          appreciationRate: 0,
+          category: "Other",
+        });
+        setIsModalOpen(false);
+      } else {
+        setError('Failed to add asset');
+      }
+    } catch (error) {
+      console.error('Error adding asset:', error);
+      setError('Failed to add asset');
     }
   };
 
   const colors = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6"];
+
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading your assets...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+          <p className="text-red-800 dark:text-red-200">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -305,7 +359,7 @@ const MoneyCalc = () => {
                     Asset
                   </th>
                   <th className="px-4 py-3.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Quantity
+                    Category
                   </th>
                   <th className="px-4 py-3.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Current Value (₹)
@@ -319,28 +373,29 @@ const MoneyCalc = () => {
               </tr>
             </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {assets.map((asset, index) => {
+              {assets.map((asset) => {
+                  const expectedReturn = getAssetExpectedReturn(asset);
                   const futureValue = calculateFutureValue(
-                    asset.currentValue * asset.quantity,
-                    asset.expectedReturn,
+                    asset.value,
+                    expectedReturn,
                     timeframe
                   );
                 return (
                     <tr
-                      key={asset.id}
+                      key={asset._id || asset.name}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                         {asset.name}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        {asset.quantity.toLocaleString()}
+                        {asset.category}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        {formatRupees(asset.currentValue * asset.quantity)}
+                        {formatRupees(asset.value)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        {asset.expectedReturn}%
+                        {expectedReturn}%
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-indigo-600 dark:text-indigo-400">
                         {formatRupees(futureValue)}
@@ -358,8 +413,7 @@ const MoneyCalc = () => {
                 <td className="px-4 py-3 text-sm font-bold text-gray-900 dark:text-white">
                     {formatRupees(
                       assets.reduce(
-                        (sum, asset) =>
-                          sum + asset.currentValue * asset.quantity,
+                        (sum, asset) => sum + asset.value,
                         0
                       )
                     )}
@@ -373,8 +427,8 @@ const MoneyCalc = () => {
                         (sum, asset) =>
                           sum +
                           calculateFutureValue(
-                            asset.currentValue * asset.quantity,
-                            asset.expectedReturn,
+                            asset.value,
+                            getAssetExpectedReturn(asset),
                             timeframe
                           ),
                         0
@@ -450,7 +504,7 @@ const MoneyCalc = () => {
                 />
                 {assets.map((asset, index) => (
                   <Line
-                    key={asset.id}
+                    key={asset._id || asset.name}
                     type="monotone"
                     dataKey={asset.name}
                     stroke={colors[index % colors.length]}
@@ -505,17 +559,23 @@ const MoneyCalc = () => {
           </div>
           <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Quantity
+              Category
           </label>
-          <input
-            type="number"
-              value={newAsset.quantity || ""}
+          <select
+              value={newAsset.category || ""}
               onChange={(e) =>
-                setNewAsset({ ...newAsset, quantity: Number(e.target.value) })
+                setNewAsset({ ...newAsset, category: e.target.value })
               }
               className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent dark:bg-gray-700 dark:border-gray-600"
-              placeholder="Enter quantity"
-          />
+          >
+            <option value="">Select category</option>
+            <option value="Stocks">Stocks</option>
+            <option value="Mutual Funds">Mutual Funds</option>
+            <option value="Real Estate">Real Estate</option>
+            <option value="Fixed Deposit">Fixed Deposit</option>
+            <option value="Gold">Gold</option>
+            <option value="Other">Other</option>
+          </select>
         </div>
           <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -523,11 +583,11 @@ const MoneyCalc = () => {
           </label>
           <input
             type="number"
-              value={newAsset.currentValue || ""}
+              value={newAsset.value || ""}
               onChange={(e) =>
                 setNewAsset({
                   ...newAsset,
-                  currentValue: Number(e.target.value),
+                  value: Number(e.target.value),
                 })
               }
               className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent dark:bg-gray-700 dark:border-gray-600"
@@ -536,20 +596,20 @@ const MoneyCalc = () => {
         </div>
           <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Expected Annual Return (%)
+            Expected Annual Return (%) - Optional
           </label>
             <div className="relative">
           <input
             type="number"
-                value={newAsset.expectedReturn || ""}
+                value={newAsset.appreciationRate || ""}
                 onChange={(e) =>
                   setNewAsset({
                     ...newAsset,
-                    expectedReturn: Number(e.target.value),
+                    appreciationRate: Number(e.target.value),
                   })
                 }
                 className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent dark:bg-gray-700 dark:border-gray-600"
-              placeholder="Enter expected return"
+              placeholder="Leave blank for default return based on category"
           />
               <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                 <span className="text-gray-500">%</span>
@@ -558,10 +618,8 @@ const MoneyCalc = () => {
         </div>
         </div>
         <button 
-          onClick={() => {
-            addAsset();
-            setIsModalOpen(false);
-          }}
+          onClick={addAsset}
+          disabled={!newAsset.name || !newAsset.value || !newAsset.category}
           className="mt-6 w-full bg-indigo-600 text-white py-2.5 px-4 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
         >
           Add Asset

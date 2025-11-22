@@ -48,7 +48,6 @@ from models import (
     AssetSchema, LiabilitySchema, serialize_document,
     calculate_net_worth, calculate_monthly_cash_flow
 )
-from calculators import build_asset_growth_response
 from bson import ObjectId
 # ADD this import near other imports
 from gemini_recommendations import get_personalized_recommendations
