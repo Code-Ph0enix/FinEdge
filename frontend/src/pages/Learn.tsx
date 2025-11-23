@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import SectionHeading from "../components/SectionHeading";
 import {
   BookOpen,
   TrendingUp,
@@ -283,9 +284,7 @@ const Learn = () => {
         {/* Header */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 bg-clip-text text-transparent">
-              Learning Center
-            </h1>
+            <SectionHeading as="h1" gradient>Learning Center</SectionHeading>
             <p className="text-gray-600 dark:text-gray-400 mt-2">Master finance with world-class Coursera courses</p>
           </div>
           
