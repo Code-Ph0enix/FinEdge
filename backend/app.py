@@ -156,14 +156,14 @@ app.register_blueprint(stock_bp)
 def home():
     """Health check endpoint for the FinEdge API."""
     return jsonify({
-        "status": "healthy",
+        "status": "running",
         "message": "FinEdge API is running",
         "version": "1.0.0",
-        "endpoints": [
-            "/agent - AI Financial Agent",
-            "/api/market-summary - Market Data",
-            "/ai-financial-path - Financial Planning"
-        ]
+        # "endpoints": [
+        #     "/agent - AI Financial Agent",
+        #     "/api/market-summary - Market Data",
+        #     "/ai-financial-path - Financial Planning"
+        # ]
     })
 
 # =================== DYNAMIC APIS ===================
@@ -1102,7 +1102,12 @@ def get_asset_growth_projection():
 def manage_income():
     """CRUD operations for income entries"""
     try:
-        clerk_user_id = request.args.get('clerkUserId') or request.json.get('clerkUserId')
+        clerk_user_id = request.args.get('clerkUserId')
+        data = None
+        if request.is_json:
+            data = request.get_json(silent=True)
+        if not clerk_user_id and data:
+            clerk_user_id = data.get('clerkUserId')
         
         if not clerk_user_id:
             return jsonify({'error': 'clerkUserId is required'}), 400
@@ -1262,7 +1267,10 @@ def manage_assets():
                 return jsonify({'error': f'MongoDB insert_one failed: {str(e)}', 'asset_doc': asset_doc}), 500
         
         elif request.method == 'PUT':
-            data = request.json
+            if not data:
+                data = request.get_json(silent=True)
+            if not data:
+                return jsonify({'error': 'Missing or invalid JSON body'}), 400
             entry_id = data.get('_id')
             if not entry_id:
                 return jsonify({'error': '_id is required for update'}), 400
@@ -1293,7 +1301,12 @@ def manage_assets():
 def manage_liabilities():
     """CRUD operations for liability entries"""
     try:
-        clerk_user_id = request.args.get('clerkUserId') or request.json.get('clerkUserId')
+        clerk_user_id = request.args.get('clerkUserId')
+        data = None
+        if request.is_json:
+            data = request.get_json(silent=True)
+        if not clerk_user_id and data:
+            clerk_user_id = data.get('clerkUserId')
         
         if not clerk_user_id:
             return jsonify({'error': 'clerkUserId is required'}), 400
@@ -1305,7 +1318,8 @@ def manage_liabilities():
             return jsonify({'liabilities': [serialize_document(doc) for doc in liabilities]})
         
         elif request.method == 'POST':
-            data = request.json
+            if not data:
+                return jsonify({'error': 'Missing or invalid JSON body'}), 400
             liability_doc = LiabilitySchema.create(
                 clerk_user_id=clerk_user_id,
                 name=data['name'],

@@ -12,6 +12,9 @@ import { useUser } from '@clerk/clerk-react';
 import { DollarSign, Plus, Trash2, Edit2, X, Building2, Briefcase, Car, Landmark, Coins, CreditCard } from 'lucide-react';
 import { SERVER_URL } from '../../../utils/utils';
 
+// Fallback for SERVER_URL if undefined
+const API_BASE_URL = SERVER_URL || 'http://localhost:5000';
+
 interface Asset {
   id: string;
   name: string;
@@ -22,23 +25,43 @@ interface Asset {
   notes?: string;
 }
 
-const normalizeAsset = (doc: any): Asset => ({
-  id: doc?.id ?? doc?._id ?? '',
-  name: doc?.name ?? '',
-  value:
-    typeof doc?.value === 'number'
-      ? doc.value
-      : Number.parseFloat(doc?.value ?? '0') || 0,
-  category: (doc?.category ?? 'other') as Asset['category'],
-  purchaseDate: doc?.purchaseDate ?? undefined,
-  appreciationRate:
-    typeof doc?.appreciationRate === 'number'
-      ? doc.appreciationRate
-      : doc?.appreciationRate
-      ? Number.parseFloat(doc.appreciationRate)
-      : undefined,
-  notes: doc?.notes ?? undefined,
-});
+const normalizeAsset = (doc: any): Asset | null => {
+  try {
+    if (!doc || (typeof doc !== 'object')) {
+      console.warn('Invalid document provided to normalizeAsset:', doc);
+      return null;
+    }
+
+    const id = doc?.id ?? doc?._id?.toString() ?? '';
+    if (!id) {
+      console.warn('Document missing id field:', doc);
+      return null;
+    }
+
+    return {
+      id,
+      name: doc?.name?.toString() ?? '',
+      value:
+        typeof doc?.value === 'number'
+          ? doc.value
+          : Number.parseFloat(doc?.value ?? '0') || 0,
+      category: (['realestate', 'investments', 'vehicles', 'bank', 'cash', 'other'].includes(doc?.category) 
+    ? doc.category 
+    : 'other') as Asset['category'],
+      purchaseDate: doc?.purchaseDate ?? undefined,
+      appreciationRate:
+        typeof doc?.appreciationRate === 'number'
+          ? doc.appreciationRate
+          : doc?.appreciationRate
+          ? (Number.parseFloat(doc.appreciationRate) || undefined)
+          : undefined,
+      notes: doc?.notes?.toString() ?? undefined,
+    };
+  } catch (error) {
+    console.error('Error normalizing asset:', error, doc);
+    return null;
+  }
+};
 
 const categoryIcons = {
   realestate: Building2,
@@ -50,12 +73,30 @@ const categoryIcons = {
 };
 
 const categoryColors = {
-  realestate: 'emerald',
-  investments: 'blue',
-  vehicles: 'orange',
-  bank: 'indigo',
-  cash: 'green',
-  other: 'gray'
+  realestate: {
+    bg: 'bg-emerald-100 dark:bg-emerald-900/30',
+    text: 'text-emerald-600 dark:text-emerald-400'
+  },
+  investments: {
+    bg: 'bg-blue-100 dark:bg-blue-900/30',
+    text: 'text-blue-600 dark:text-blue-400'
+  },
+  vehicles: {
+    bg: 'bg-orange-100 dark:bg-orange-900/30',
+    text: 'text-orange-600 dark:text-orange-400'
+  },
+  bank: {
+    bg: 'bg-indigo-100 dark:bg-indigo-900/30',
+    text: 'text-indigo-600 dark:text-indigo-400'
+  },
+  cash: {
+    bg: 'bg-green-100 dark:bg-green-900/30',
+    text: 'text-green-600 dark:text-green-400'
+  },
+  other: {
+    bg: 'bg-gray-100 dark:bg-gray-900/30',
+    text: 'text-gray-600 dark:text-gray-400'
+  }
 };
 
 const categoryLabels = {
@@ -68,12 +109,13 @@ const categoryLabels = {
 };
 
 export const AssetsTab = () => {
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     value: '',
@@ -86,12 +128,17 @@ export const AssetsTab = () => {
   // Fetch assets from MongoDB on component mount
   useEffect(() => {
     const fetchAssets = async () => {
-      if (!user?.id) return;
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
 
       try {
         setIsLoading(true);
+        setError(null);
+        
         const response = await fetch(
-          `${SERVER_URL}/api/user-profile/assets?clerkUserId=${user.id}`,
+          `${API_BASE_URL}/api/user-profile/assets?clerkUserId=${user.id}`,
           {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
@@ -102,12 +149,15 @@ export const AssetsTab = () => {
           const data = await response.json();
           const normalized = (data.assets || [])
             .map(normalizeAsset)
-            .filter((asset: Asset) => Boolean(asset.id));
+            .filter((asset: Asset | null): asset is Asset => asset !== null && Boolean(asset.id));
           setAssets(normalized);
         } else {
-          console.error('Failed to fetch assets data');
+          const errorData = await response.text();
+          setError(`Failed to fetch assets: ${response.status} ${response.statusText}`);
+          console.error('Failed to fetch assets data:', errorData);
         }
       } catch (error) {
+        setError('Network error: Unable to connect to server');
         console.error('Error fetching assets:', error);
       } finally {
         setIsLoading(false);
@@ -118,9 +168,18 @@ export const AssetsTab = () => {
   }, [user]);
 
   const handleAdd = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setError('User not authenticated');
+      return;
+    }
+
+    if (!formData.name.trim()) {
+      setError('Asset name is required');
+      return;
+    }
 
     try {
+      setError(null);
       const valueRaw = Number.parseFloat(formData.value);
       const value = Number.isNaN(valueRaw) ? 0 : valueRaw;
       const appreciationRaw = formData.appreciationRate
@@ -131,7 +190,7 @@ export const AssetsTab = () => {
           ? appreciationRaw
           : undefined;
 
-      const response = await fetch(`${SERVER_URL}/api/user-profile/assets`, {
+      const response = await fetch(`${API_BASE_URL}/api/user-profile/assets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -148,22 +207,37 @@ export const AssetsTab = () => {
       if (response.ok) {
         const result = await response.json();
         if (result?.asset) {
-          setAssets((prev) => [...prev, normalizeAsset(result.asset)]);
+          const normalized = normalizeAsset(result.asset);
+          if (normalized) {
+            setAssets((prev) => [...prev, normalized]);
+          }
         }
         setIsModalOpen(false);
         resetForm();
       } else {
-        console.error('Failed to add asset');
+        const errorData = await response.text();
+        setError(`Failed to add asset: ${response.status}`);
+        console.error('Failed to add asset:', errorData);
       }
     } catch (error) {
+      setError('Network error: Unable to save asset');
       console.error('Error adding asset:', error);
     }
   };
 
   const handleEdit = async () => {
-    if (!selectedAsset || !user?.id) return;
+    if (!selectedAsset || !user?.id) {
+      setError('Invalid asset selection or user not authenticated');
+      return;
+    }
+
+    if (!formData.name.trim()) {
+      setError('Asset name is required');
+      return;
+    }
 
     try {
+      setError(null);
       const valueRaw = Number.parseFloat(formData.value);
       const value = Number.isNaN(valueRaw) ? 0 : valueRaw;
       const appreciationRaw = formData.appreciationRate
@@ -174,7 +248,7 @@ export const AssetsTab = () => {
           ? appreciationRaw
           : undefined;
 
-      const response = await fetch(`${SERVER_URL}/api/user-profile/assets`, {
+      const response = await fetch(`${API_BASE_URL}/api/user-profile/assets`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -209,9 +283,12 @@ export const AssetsTab = () => {
         setIsEditing(false);
         resetForm();
       } else {
-        console.error('Failed to update asset');
+        const errorData = await response.text();
+        setError(`Failed to update asset: ${response.status}`);
+        console.error('Failed to update asset:', errorData);
       }
     } catch (error) {
+      setError('Network error: Unable to update asset');
       console.error('Error updating asset:', error);
     }
   };
@@ -220,8 +297,9 @@ export const AssetsTab = () => {
     if (!user?.id || !id || !confirm('Are you sure you want to delete this asset?')) return;
 
     try {
+      setError(null);
       const response = await fetch(
-        `${SERVER_URL}/api/user-profile/assets?clerkUserId=${user.id}&entryId=${id}`,
+        `${API_BASE_URL}/api/user-profile/assets?clerkUserId=${user.id}&entryId=${id}`,
         {
           method: 'DELETE',
         }
@@ -230,9 +308,12 @@ export const AssetsTab = () => {
       if (response.ok) {
         setAssets((prev) => prev.filter((asset) => asset.id !== id));
       } else {
-        console.error('Failed to delete asset');
+        const errorData = await response.text();
+        setError(`Failed to delete asset: ${response.status}`);
+        console.error('Failed to delete asset:', errorData);
       }
     } catch (error) {
+      setError('Network error: Unable to delete asset');
       console.error('Error deleting asset:', error);
     }
   };
@@ -240,6 +321,7 @@ export const AssetsTab = () => {
   const openAddModal = () => {
     resetForm();
     setIsEditing(false);
+    setError(null);
     setIsModalOpen(true);
   };
 
@@ -254,6 +336,7 @@ export const AssetsTab = () => {
     });
     setSelectedAsset(asset.id);
     setIsEditing(true);
+    setError(null);
     setIsModalOpen(true);
   };
 
@@ -267,6 +350,7 @@ export const AssetsTab = () => {
       notes: ''
     });
     setSelectedAsset(null);
+    setError(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -278,11 +362,43 @@ export const AssetsTab = () => {
     }
   };
 
-  // Loading state
-  if (isLoading) {
+  // Loading state - also check if Clerk user is loaded
+  if (isLoading || !isLoaded) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  // User not authenticated state
+  if (!user) {
+    return (
+      <div className="text-center py-12 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+        <div className="text-yellow-600 dark:text-yellow-400 text-lg mb-4">
+          🔒 Authentication Required
+        </div>
+        <p className="text-yellow-500 dark:text-yellow-300 mb-4">
+          Please sign in to view your assets
+        </p>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="text-center py-12 bg-red-50 dark:bg-red-900/20 rounded-lg">
+        <div className="text-red-600 dark:text-red-400 text-lg mb-4">
+          ⚠️ Error Loading Assets
+        </div>
+        <p className="text-red-500 dark:text-red-300 mb-4">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -318,8 +434,8 @@ export const AssetsTab = () => {
       ) : (
         <div className="grid gap-4">
           {assets.map((asset) => {
-            const Icon = categoryIcons[asset.category];
-            const color = categoryColors[asset.category];
+            const Icon = categoryIcons[asset.category] || categoryIcons.other;
+            const color = categoryColors[asset.category] || categoryColors.other;
             return (
               <div
                 key={asset.id}
@@ -327,8 +443,8 @@ export const AssetsTab = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4 flex-1">
-                    <div className={`p-3 bg-${color}-100 dark:bg-${color}-900/30 rounded-lg`}>
-                      <Icon className={`w-6 h-6 text-${color}-600 dark:text-${color}-400`} />
+                    <div className={`p-3 ${color.bg} rounded-lg`}>
+                      <Icon className={`w-6 h-6 ${color.text}`} />
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -412,6 +528,11 @@ export const AssetsTab = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                  <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Asset Name *

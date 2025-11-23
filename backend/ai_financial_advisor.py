@@ -19,6 +19,7 @@ import os
 import sys
 import logging
 import warnings
+import json
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
@@ -275,6 +276,20 @@ Key areas of expertise:
 Provide balanced, ethical financial advice and acknowledge when certain situations may require consultation with other financial professionals.
 
 If the user provides you with research data from tools (like stock prices, company info, historical data), use it comprehensively in your response. Always cite the data when making recommendations.
+When research_data contains "type": "compound_query":
+- Acknowledge that the user asked about multiple things
+- Break down what they asked into separate questions
+- Offer to help with each one individually
+- Be friendly and guide them to ask separately
+
+Example:
+"I can see you're asking about both Sensex rating and Reliance price! 
+Let me help you with both:
+
+1. For Sensex: Are you looking for its current value, or my analysis/recommendation?
+2. For Reliance: I can get you today's live price
+
+Please ask about each one separately so I can fetch real-time data for you. What would you like to know first?
 
 When answering investment queries:
 1. Consider current market conditions
@@ -282,6 +297,29 @@ When answering investment queries:
 3. Assess risk factors
 4. Provide balanced pros and cons (2-3 each maximum)
 5. Never guarantee returns or outcomes
+
+
+CRITICAL FORMATTING RULES:
+1. **NEVER mention ticker symbols** (like ADANIGREEN.NS, ^BSESN, RELIANCE.NS) - Use company names only
+2. **Format prices clearly**: Use ₹ symbol and commas (₹1,029.00 not 1029.0)
+3. **Format timestamps human-friendly**: 
+   - Convert "2025-11-23T06:46:09.962363" → "23 November 2025, 12:16 PM IST"
+   - Or simpler: "today at 12:16 PM IST" if same day
+4. **Don't say "as of [timestamp]"** - Say "currently" or "right now" or "today at [time]"
+
+EXAMPLES OF GOOD FORMATTING:
+❌ BAD: "Adani Green Energy (ADANIGREEN.NS) is 1029.0 INR as of 2025-11-23T06:46:09.962363"
+✅ GOOD: "Adani Green Energy is currently trading at ₹1,029.00 (as of today, 12:16 PM IST)"
+
+❌ BAD: "The SENSEX (^BSESN) is 85231.92 INR"
+✅ GOOD: "The Sensex is currently at 85,231.92 points"
+
+When research_data is provided:
+- Extract price, timestamp, and other relevant data
+- Present it in a user-friendly, conversational manner
+- Focus on company names, not technical symbols
+- Convert timestamps to IST and readable format
+- Use Indian Rupee symbol (₹) and proper number formatting
 
 Remember: Brevity is key. Quality over quantity.
 Whenever a tool returns JSON (such as get_current_price), DO NOT rewrite or summarize it. 
@@ -506,18 +544,174 @@ def initialize_tools():
 # =====================================================================================
 
 # Minimal company name -> ticker mapping. Extend this in production.
+# Comprehensive company name -> ticker mapping for Indian market
 _TICKER_OVERRIDE = {
-    # common examples; extend as needed
-    "adani green energy": "ADANIGREEN.NS",
+    # Major Indices
+    "nifty": "^NSEI",
+    "nifty 50": "^NSEI",
+    "sensex": "^BSESN",
+    "bse sensex": "^BSESN",
+    "bank nifty": "^NSEBANK",
+    "nifty bank": "^NSEBANK",
+    "nifty it": "^CNXIT",
+    "nifty pharma": "^CNXPHARMA",
+    "nifty auto": "^CNXAUTO",
+    
+    # Top 10 by Market Cap
     "reliance": "RELIANCE.NS",
+    "reliance industries": "RELIANCE.NS",
     "tcs": "TCS.NS",
+    "tata consultancy services": "TCS.NS",
     "hdfc bank": "HDFCBANK.NS",
     "hdfcbank": "HDFCBANK.NS",
+    "icici bank": "ICICIBANK.NS",
+    "icicibank": "ICICIBANK.NS",
     "infosys": "INFY.NS",
-    "reliance industries": "RELIANCE.NS",
-    "nifty": "^NSEI",
-    "sensex": "^BSESN"
+    "infy": "INFY.NS",
+    "bharti airtel": "BHARTIARTL.NS",
+    "airtel": "BHARTIARTL.NS",
+    "itc": "ITC.NS",
+    "sbi": "SBIN.NS",
+    "state bank": "SBIN.NS",
+    "state bank of india": "SBIN.NS",
+    "hindustan unilever": "HINDUNILVR.NS",
+    "hul": "HINDUNILVR.NS",
+    "larsen": "LT.NS",
+    "l&t": "LT.NS",
+    "larsen and toubro": "LT.NS",
+    
+    # Adani Group
+    "adani green": "ADANIGREEN.NS",
+    "adani green energy": "ADANIGREEN.NS",
+    "adani enterprises": "ADANIENT.NS",
+    "adani ports": "ADANIPORTS.NS",
+    "adani power": "ADANIPOWER.NS",
+    "adani transmission": "ADANITRANS.NS",
+    "adani total gas": "ATGL.NS",
+    
+    # Tata Group
+    "tata steel": "TATASTEEL.NS",
+    "tata motors": "TATAMOTORS.NS",
+    "tata power": "TATAPOWER.NS",
+    "tcs": "TCS.NS",
+    "titan": "TITAN.NS",
+    "titan company": "TITAN.NS",
+    "tata consumer": "TATACONSUM.NS",
+    
+    # IT Sector
+    "wipro": "WIPRO.NS",
+    "hcl tech": "HCLTECH.NS",
+    "hcl technologies": "HCLTECH.NS",
+    "tech mahindra": "TECHM.NS",
+    "ltimindtree": "LTIM.NS",
+    "persistent": "PERSISTENT.NS",
+    "coforge": "COFORGE.NS",
+    
+    # Banking & Finance
+    "axis bank": "AXISBANK.NS",
+    "kotak bank": "KOTAKBANK.NS",
+    "kotak mahindra": "KOTAKBANK.NS",
+    "indusind bank": "INDUSINDBK.NS",
+    "yes bank": "YESBANK.NS",
+    "idfc first bank": "IDFCFIRSTB.NS",
+    "bandhan bank": "BANDHANBNK.NS",
+    "bajaj finance": "BAJFINANCE.NS",
+    "bajaj finserv": "BAJAJFINSV.NS",
+    "sbi life": "SBILIFE.NS",
+    "hdfc life": "HDFCLIFE.NS",
+    "icici lombard": "ICICIGI.NS",
+    "icici prudential": "ICICIPRULI.NS",
+    
+    # Automobile
+    "maruti": "MARUTI.NS",
+    "maruti suzuki": "MARUTI.NS",
+    "mahindra": "M&M.NS",
+    "m&m": "M&M.NS",
+    "mahindra and mahindra": "M&M.NS",
+    "bajaj auto": "BAJAJ-AUTO.NS",
+    "hero motocorp": "HEROMOTOCO.NS",
+    "hero": "HEROMOTOCO.NS",
+    "tata motors": "TATAMOTORS.NS",
+    "eicher motors": "EICHERMOT.NS",
+    "tvs motor": "TVSMOTOR.NS",
+    
+    # Pharma
+    "sun pharma": "SUNPHARMA.NS",
+    "sun pharmaceutical": "SUNPHARMA.NS",
+    "dr reddy": "DRREDDY.NS",
+    "dr reddys": "DRREDDY.NS",
+    "cipla": "CIPLA.NS",
+    "divi's lab": "DIVISLAB.NS",
+    "divis laboratories": "DIVISLAB.NS",
+    "biocon": "BIOCON.NS",
+    "lupin": "LUPIN.NS",
+    "aurobindo pharma": "AUROPHARMA.NS",
+    "torrent pharma": "TORNTPHARM.NS",
+    
+    # FMCG & Consumer
+    "britannia": "BRITANNIA.NS",
+    "nestle": "NESTLEIND.NS",
+    "nestle india": "NESTLEIND.NS",
+    "dabur": "DABUR.NS",
+    "godrej consumer": "GODREJCP.NS",
+    "marico": "MARICO.NS",
+    "colgate": "COLPAL.NS",
+    "colgate palmolive": "COLPAL.NS",
+    
+    # Metals & Mining
+    "hindalco": "HINDALCO.NS",
+    "vedanta": "VEDL.NS",
+    "jindal steel": "JINDALSTEL.NS",
+    "jsw steel": "JSWSTEEL.NS",
+    "coal india": "COALINDIA.NS",
+    "nmdc": "NMDC.NS",
+    
+    # Energy & Power
+    "ntpc": "NTPC.NS",
+    "power grid": "POWERGRID.NS",
+    "ongc": "ONGC.NS",
+    "oil and natural gas": "ONGC.NS",
+    "ioc": "IOC.NS",
+    "indian oil": "IOC.NS",
+    "bpcl": "BPCL.NS",
+    "bharat petroleum": "BPCL.NS",
+    "gail": "GAIL.NS",
+    
+    # Telecom & Tech
+    "bharti airtel": "BHARTIARTL.NS",
+    "vodafone idea": "IDEA.NS",
+    "vi": "IDEA.NS",
+    
+    # Retail & E-commerce
+    "dmart": "DMART.NS",
+    "avenue supermarts": "DMART.NS",
+    "trent": "TRENT.NS",
+    
+    # Cement
+    "ultratech cement": "ULTRACEMCO.NS",
+    "ultratech": "ULTRACEMCO.NS",
+    "ambuja cement": "AMBUJACEM.NS",
+    "acc cement": "ACC.NS",
+    "shree cement": "SHREECEM.NS",
+    
+    # Paints
+    "asian paints": "ASIANPAINT.NS",
+    "berger paints": "BERGEPAINT.NS",
+    
+    # Real Estate
+    "dlf": "DLF.NS",
+    "godrej properties": "GODREJPROP.NS",
+    "oberoi realty": "OBEROIRLTY.NS",
+    
+    # Others
+    "pidilite": "PIDILITIND.NS",
+    "pidilite industries": "PIDILITIND.NS",
+    "siemens": "SIEMENS.NS",
+    "bosch": "BOSCHLTD.NS",
+    "havells": "HAVELLS.NS",
+    "voltas": "VOLTAS.NS",
 }
+
 
 def resolve_ticker(query: str) -> str:
     """
@@ -541,6 +735,38 @@ def resolve_ticker(query: str) -> str:
         return simple
     # finally append NSE suffix as a guess
     return simple + ".NS"
+
+def is_compound_query(query: str) -> bool:
+    """
+    Detect if query asks about multiple entities or mixed requests.
+    Returns True if query should be handled conversationally (no tools).
+    """
+    import re
+    
+    indicators = [
+        # Multiple entities with "and"
+        r'\band\b.{1,50}\b(price|value|rating|stock|share)',
+        
+        # Multiple entities with "bhi" (also)
+        r'\b(bhi|also|too)\b.{1,30}\b(price|value|stock)',
+        
+        # Comma-separated entities
+        r',\s*.{1,40}\b(price|stock|value)',
+        
+        # Different request types (rating + price, analysis + data)
+        r'\b(rating|analysis|opinion|recommendation)\b.{1,50}\b(price|value|data)',
+        
+        # Multiple "ka/ki/ke" patterns
+        (r'(?:ka|ki|ke)\s+(?:price|rating|value).{1,50}(?:ka|ki|ke)\s+(?:price|rating|value)')
+    ]
+    
+    for pattern in indicators:
+        if re.search(pattern, query, re.IGNORECASE):
+            logger.info(f"Compound query detected via pattern: {pattern}")
+            return True
+    
+    return False
+
 
 def fetch_stock_price_by_symbol(symbol: str) -> Dict[str, Any]:
     """
@@ -628,51 +854,86 @@ tools = initialize_tools()
 
 # If the module 'get_current_price' tool exists in tools list, keep it.
 # Otherwise, add our robust wrapper that uses yfinance helper above.
-def _get_current_price_wrapper(arg: str):
-    """
-    Wrapper for ReAct agent tool calling. Accepts either a symbol or natural language,
-    resolves to a symbol, and returns JSON-like string result.
-    """
-    try:
-        # If the user passed something like "price of Adani Green", extract the company phrase
-        # crude extraction: take last 6-8 words after 'price' or 'current price'
-        text = (arg or "").strip()
-        # Try to extract quoted substring if provided
-        m = re.search(r'["“](.+?)["”]', text)
-        company = None
-        if m:
-            company = m.group(1)
-        else:
-            # try common patterns
-            m2 = re.search(r'price of (.+)', text, flags=re.I)
-            if m2:
-                company = m2.group(1)
-            else:
-                # fallback: take last 4 words as company
-                parts = text.split()
-                company = " ".join(parts[-4:]) if len(parts) >= 1 else text
+# def _get_current_price_wrapper(arg: str):
+#     """
+#     Wrapper for ReAct agent tool calling. Accepts either a symbol or natural language,
+#     resolves to a symbol, and returns JSON-like string result.
+#     """
+#     try:
+#         # If the user passed something like "price of Adani Green", extract the company phrase
+#         # crude extraction: take last 6-8 words after 'price' or 'current price'
+#         text = (arg or "").strip()
+#         # Try to extract quoted substring if provided
+#         m = re.search(r'["“](.+?)["”]', text)
+#         company = None
+#         if m:
+#             company = m.group(1)
+#         else:
+#             # try common patterns
+#             m2 = re.search(r'price of (.+)', text, flags=re.I)
+#             if m2:
+#                 company = m2.group(1)
+#             else:
+#                 # fallback: take last 4 words as company
+#                 parts = text.split()
+#                 company = " ".join(parts[-4:]) if len(parts) >= 1 else text
 
-        symbol = resolve_ticker(company)
-        data = fetch_stock_price_by_symbol(symbol)
-        return data
-    except Exception as e:
-        return {"error": str(e)}
+#         symbol = resolve_ticker(company)
+#         data = fetch_stock_price_by_symbol(symbol)
+#         return data
+#     except Exception as e:
+#         return {"error": str(e)}
 
-# Add wrapper into tools map for MinimalToolAgent if not present
-try:
-    # If explicit tool exists (from tools.mytools) prefer that name
-    found = False
+# # Add wrapper into tools map for MinimalToolAgent if not present
+# try:
+#     # If explicit tool exists (from tools.mytools) prefer that name
+#     found = False
+#     for t in tools or []:
+#         name = getattr(t, "name", None) or getattr(t, "__name__", None)
+#         if name and name.lower() == "get_current_price".lower():
+#             found = True
+#             break
+#     if not found:
+#         # expose wrapper as a simple callable with name 'get_current_price'
+#         tools = (tools or []) + [_get_current_price_wrapper]
+#         logger.info("Added _get_current_price_wrapper to tools for robust price fetching")
+# except Exception as e:
+#     logger.warning(f"Failed to register price wrapper: {e}")
+
+# ---------------------------
+# Register / wrap get_current_price tool
+# ---------------------------
+# The tool is now properly defined in mytools.py with @tool decorator
+# No need for wrapper - just ensure it's imported correctly
+
+def validate_tools_loaded():
+    """Validate that critical financial tools are loaded"""
+    tool_names = []
     for t in tools or []:
-        name = getattr(t, "name", None) or getattr(t, "__name__", None)
-        if name and name.lower() == "get_current_price".lower():
-            found = True
-            break
-    if not found:
-        # expose wrapper as a simple callable with name 'get_current_price'
-        tools = (tools or []) + [_get_current_price_wrapper]
-        logger.info("Added _get_current_price_wrapper to tools for robust price fetching")
-except Exception as e:
-    logger.warning(f"Failed to register price wrapper: {e}")
+        try:
+            name = getattr(t, "name", None) or getattr(t, "__name__", None)
+            if name:
+                tool_names.append(name.lower())
+        except Exception:
+            continue
+    
+    critical_tools = ["get_current_price", "get_historical_price", "get_company_info"]
+    missing = [t for t in critical_tools if t not in tool_names]
+    
+    if missing:
+        logger.error(f"Critical tools missing: {missing}")
+        logger.error(f"Available tools: {tool_names}")
+        return False
+    
+    logger.info(f"✅ All critical financial tools loaded: {tool_names}")
+    return True
+
+# Validate tool loading
+if tools:
+    validate_tools_loaded()
+else:
+    logger.error("❌ No tools loaded! Agent will not function properly.")
+
 
 
 
@@ -829,34 +1090,179 @@ if react_llm:
                 # ENHANCED TOOL FINDING WITH HEURISTICS
                 # =============================================================
 
+                # def _find_tool_for_query(self, query_text: str):
+                #     q = query_text.lower()
+                #     # exact name match or contained name (prefers longer names)
+                #     best = None
+                #     for name in sorted(self.tools_map.keys(), key=lambda x: -len(x)):
+                #         if name in q:
+                #             best = name
+                #             break
+                #     # Additional heuristic: if user asks about 'price', 'current price', 'trading at', map to get_current_price
+                #     if not best:
+                #         if re.search(r'\b(price|current price|trading at|cmp|share price|stock price)\b', q):
+                #             # prefer tool named like get_current_price if available
+                #             for candidate in ("get_current_price", "current_price", "price", "price_lookup"):
+                #                 if candidate in self.tools_map:
+                #                     best = candidate
+                #                     break
+                #             # final fallback: if wrapper function added without specific name, attempt to find a callable that returns dict with 'price'
+                #             if not best:
+                #                 for nm, fn in self.tools_map.items():
+                #                     try:
+                #                         # quick probe: don't actually call, but match name heuristics
+                #                         if "price" in nm:
+                #                             best = nm
+                #                             break
+                #                     except Exception:
+                #                         continue
+                #     return best
+
+
+
+
+                # ==============================================================================================================================================================================
+                # CHANGING THAT FUNCTION AGAIN 
+                # ==============================================================================================================================================================================
                 def _find_tool_for_query(self, query_text: str):
+                    """Enhanced tool matching with better heuristics"""
                     q = query_text.lower()
-                    # exact name match or contained name (prefers longer names)
-                    best = None
+    
+                    # Priority 1: Exact or substring match
                     for name in sorted(self.tools_map.keys(), key=lambda x: -len(x)):
                         if name in q:
-                            best = name
-                            break
-                    # Additional heuristic: if user asks about 'price', 'current price', 'trading at', map to get_current_price
-                    if not best:
-                        if re.search(r'\b(price|current price|trading at|cmp|share price|stock price)\b', q):
-                            # prefer tool named like get_current_price if available
-                            for candidate in ("get_current_price", "current_price", "price", "price_lookup"):
+                            return name
+    
+                    # Priority 2: Keyword-based heuristics for price queries
+                    price_keywords = [
+                    r'\b(current price|price|trading at|cmp|share price|stock price|trading price)\b',
+                    r'\b(sensex|nifty|index)\b',
+                    r'\b(how much|what.*price|price.*of)\b'
+                    ]
+    
+                    import re
+                    for pattern in price_keywords:
+                        if re.search(pattern, q):
+                            for candidate in ["get_current_price", "current_price", "get_price"]:
                                 if candidate in self.tools_map:
-                                    best = candidate
-                                    break
-                            # final fallback: if wrapper function added without specific name, attempt to find a callable that returns dict with 'price'
-                            if not best:
-                                for nm, fn in self.tools_map.items():
-                                    try:
-                                        # quick probe: don't actually call, but match name heuristics
-                                        if "price" in nm:
-                                            best = nm
-                                            break
-                                    except Exception:
-                                        continue
-                    return best
+                                    logger.info(f"Matched '{candidate}' tool via keyword pattern: {pattern}")
+                                    return candidate
+    
+                    # Priority 3: Historical data queries
+                    if re.search(r'\b(historical|history|past|previous|last.*days)\b', q):
+                        for candidate in ["get_historical_price", "historical_price"]:
+                            if candidate in self.tools_map:
+                                return candidate
+    
+                    # Priority 4: Company info queries
+                    if re.search(r'\b(info|information|details|about.*company)\b', q):
+                        for candidate in ["get_company_info", "company_info"]:
+                            if candidate in self.tools_map:
+                                return candidate
+    
+                    return None
 
+                # ===================================================================================================================================================
+                # NEW METHOD ADDED HERE TO IMPROVE TOOL MATCHING
+                # ===================================================================================================================================================
+                def _extract_financial_entity(self, query_text: str) -> str:
+                    """
+                    Extract company/index name from natural language query (English + Hinglish)
+                    Enhanced with better cleanup and edge case handling
+                    """
+                    import re
+    
+                    query = query_text.lower().strip()
+    
+                    # Handle empty/very short queries
+                    if not query or len(query) < 3:
+                        return query_text.strip()
+    
+                    entity = None
+    
+                    # Pattern 1: "price of X" or "price for X"
+                    match = re.search(r'price\s+(?:of|for)\s+(.+?)(?:\?|$)', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+    
+                    # Pattern 2 ENHANCED: "X stock price" with cleanup
+                    match = re.search(r'(.+?)\s+(?:stock|share)\s+price', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        # Remove common question/command words from the start
+                        entity = re.sub(r'^(what is|tell me|get me|show me|give me|batao|bataiye)\s+', '', entity, flags=re.IGNORECASE).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+    
+                    # Pattern 3: "sensex value" or "nifty points" (explicit financial terms)
+                    match = re.search(r'(sensex|nifty\s*\d*|nifty bank|bank nifty)\s+(?:value|points?|level|trading)', query, re.IGNORECASE)
+                    if match:
+                        return match.group(1).strip()
+    
+                    # Pattern 4 STRICT: Sensex/Nifty with price-intent check
+                    sensex_nifty_match = re.search(r'\b(sensex|nifty\s*\d*|bank\s*nifty|nifty\s*bank)\b', query, re.IGNORECASE)
+                    if sensex_nifty_match:
+                        index_name = sensex_nifty_match.group(1).strip()
+        
+                        price_intent_keywords = [
+                            r'\b(today|current|now|latest|aaj|abhi)\b',
+                            r'\b(kitna|kitne|how much|what is|kya hai)\b',
+                            r'\b(tell me|give me|show me|batao|dikha|bataiye)\b',
+                            r'\b(at|trading|right now|currently)\b'
+                        ]
+        
+                        has_price_intent = any(re.search(pattern, query, re.IGNORECASE) for pattern in price_intent_keywords)
+        
+                        if has_price_intent:
+                            return index_name
+    
+                    # # Pattern 5: Hinglish "X ka price" etc.
+                    # match = re.search(r'(.+?)\s+(?:ka|ki|ke)\s+(?:price|share|stock|value)', query, re.IGNORECASE)
+                    # if match:
+                    #     entity = match.group(1).strip()
+                    #     entity = re.sub(r'\b(kya|hai|batao|bataiye|dijiye|mujhe|aaj|abhi|current|please)\b', '', entity, flags=re.IGNORECASE).strip()
+                    #     if entity and len(entity) > 2:
+                    #         return entity
+                    # Pattern 5 EXPANDED: Hinglish "X ka price/rating/etc."
+                    match = re.search(r'(.+?)\s+(?:ka|ki|ke)\s+(?:price|share|stock|value|rating|performance|analysis)', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        entity = re.sub(r'\b(kya|hai|batao|bataiye|dijiye|mujhe|aaj|abhi|current|please|bhi|de)\b', '', entity, flags=re.IGNORECASE).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+
+    
+                    # Pattern 6: Hinglish "X kitna hai"
+                    match = re.search(r'(.+?)\s+(?:kitna|kitne)\s+(?:hai|points?|par hai)', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        entity = re.sub(r'\b(aaj|abhi|current|kya|today)\b', '', entity, flags=re.IGNORECASE).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+    
+                    # Pattern 7 NEW: "X trading at" or "X is trading"
+                    match = re.search(r'(.+?)\s+(?:is\s+)?trading\s+(?:at|for)', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        entity = re.sub(r'^(how much|what|is|the)\s+', '', entity, flags=re.IGNORECASE).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+    
+                    # Pattern 8: General cleanup (last resort)
+                    entity = re.sub(r'\b(what|is|the|current|stock|share|price|of|for|today\'?s?|value|today|tell me|give me|show me|get me|how much)\b', 
+                                    '', query, flags=re.IGNORECASE).strip()
+                    entity = re.sub(r'\?', '', entity).strip()
+    
+                    # Final cleanup: remove extra spaces
+                    entity = re.sub(r'\s+', ' ', entity).strip()
+    
+                    if entity and len(entity) > 2:
+                        return entity
+    
+                    # Ultimate fallback
+                    return query_text.strip()
 
                 def invoke(self, payload):
                     # accept {'input': "..."} or a list of messages (compat)
@@ -871,12 +1277,30 @@ if react_llm:
                     except Exception:
                         query_text = str(payload)
 
+                    # tool_name = self._find_tool_for_query(query_text)
+                    # if tool_name:
+                    #     fn = self.tools_map.get(tool_name)
+                    #     try:
+                    #         # Call tool function; many tools accept a single string argument
+                    #         result = fn(query_text)
+
+                    # ============================================================================================================
+                    # REPLACED THIS TOO
+                    # ============================================================================================================
+
                     tool_name = self._find_tool_for_query(query_text)
                     if tool_name:
                         fn = self.tools_map.get(tool_name)
                         try:
-                            # Call tool function; many tools accept a single string argument
-                            result = fn(query_text)
+                            # ✅ Extract entity for price/financial tools
+                            if tool_name in ["get_current_price", "get_company_info"]:
+                                entity = self._extract_financial_entity(query_text)
+                                logger.info(f"Calling {tool_name} with extracted entity: '{entity}'")
+                                result = fn(entity)
+                            else:
+                                # For other tools, pass full query
+                                result = fn(query_text)
+
                         except TypeError:
                             try:
                                 result = fn(query_text, None)
@@ -960,6 +1384,31 @@ def get_agent_research(user_query: str, session_id: str = 'default') -> Dict[str
 
     try:
         logger.info(f"[{session_id}] Starting research for query: {user_query[:100]}...")
+                # NEW: Check for compound queries first
+        if is_compound_query(user_query):
+            logger.info(f"[{session_id}] Compound query detected - skipping tool usage")
+
+            # ==================================================================================================================
+            # UNCOMMENT THIS IF THE OTHER ONE FAILS
+            # ==================================================================================================================
+            
+            # return json.dumps({
+            #     "type": "compound_query",
+            #     "message": "This query asks about multiple topics. I'll need to address them separately.",
+            #     "detected_entities": "multiple",
+            #     "suggestion": "Please ask about each topic separately for accurate real-time data."
+            # })
+            return {
+                'success': True,
+                'output': json.dumps({
+                    "type": "compound_query",
+                    "message": "This query asks about multiple topics. I'll need to address them separately.",
+                    "detected_entities": "multiple",
+                    "suggestion": "Please ask about each topic separately for accurate real-time data."
+                }),
+                'intermediate_steps': [],
+                'error': None
+            }
 
         # Invoke agent using compatibility helper
         result = _invoke_agent_executor(agent_executor, user_query)

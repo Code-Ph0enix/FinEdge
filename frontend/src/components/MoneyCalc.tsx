@@ -8,30 +8,20 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
 } from "recharts";
 import { 
   TrendingUp, 
   Plus, 
   X, 
-  Home, 
   TrendingDown, 
-  DollarSign, 
   PiggyBank,
-  Car,
-  Banknote,
-  Wallet,
-  CreditCard,
-  GraduationCap,
-  User,
-  Gift,
-  Briefcase,
-  ShoppingCart,
-  Utensils,
-  Plane,
-  Heart,
-  Zap,
-  MoreHorizontal,
-  IndianRupeeIcon
+  IndianRupeeIcon,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 
@@ -110,6 +100,9 @@ const MoneyCalc = () => {
   const [timeframe, setTimeframe] = useState<number>(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDataType, setSelectedDataType] = useState<FinancialDataType>('asset');
+
+  const [chartView, setChartView] = useState<'consolidated' | 'individual' | 'by-category'>('consolidated');
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [income, setIncome] = useState<Income[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -264,18 +257,51 @@ const MoneyCalc = () => {
     other: 'Other'
   };
 
+
+
   const getAssetExpectedReturn = (asset: Asset): number => {
-    // Use appreciationRate if available, otherwise default based on category
-    if (asset.appreciationRate) return asset.appreciationRate;
+    // Use appreciationRate if available and is a valid positive number
+    // Note: We need to check for both null/undefined AND 0 - because 0% return is different from "no rate specified"
+    if (asset.appreciationRate !== null && asset.appreciationRate !== undefined && asset.appreciationRate > 0) {
+      return asset.appreciationRate;
+    }
     
-    // Default returns by category
+    // If appreciationRate is explicitly set to 0, honor that (no growth)
+    if (asset.appreciationRate === 0) {
+      return 0;
+    }
+    
+    // Smart defaults based on category and asset name
+    const assetName = asset.name.toLowerCase();
+    
+    // Check for specific asset types
+    if (assetName.includes('mutual fund') || assetName.includes('mf') || assetName.includes('sip')) {
+      return 12; // Mutual funds typically 10-12%
+    }
+    if (assetName.includes('fd') || assetName.includes('fixed deposit') || assetName.includes('deposit')) {
+      return 6; // FDs typically 5-7%
+    }
+    if (assetName.includes('ppf') || assetName.includes('epf')) {
+      return 7.1; // PPF current rate
+    }
+    if (assetName.includes('nsc') || assetName.includes('savings certificate')) {
+      return 6.8; // NSC current rate
+    }
+    if (assetName.includes('gold') || assetName.includes('silver')) {
+      return 8; // Precious metals historical average
+    }
+    if (assetName.includes('crypto') || assetName.includes('bitcoin') || assetName.includes('ethereum')) {
+      return 15; // High risk, high return (volatile)
+    }
+    
+    // Category-based defaults
     const defaultReturns: { [key: string]: number } = {
-      'realestate': 8,
-      'investments': 12,
-      'vehicles': 0,  // Vehicles typically depreciate
-      'bank': 4,
-      'cash': 0,  // Cash doesn't appreciate
-      'other': 6
+      'realestate': 8,    // Real estate appreciation
+      'investments': 10,   // General investments (mix of equity/debt)
+      'vehicles': -5,     // Vehicles depreciate
+      'bank': 4,          // Savings account interest
+      'cash': 0,          // Cash doesn't appreciate
+      'other': 6          // Conservative default
     };
     
     return defaultReturns[asset.category] || 6;
@@ -283,6 +309,7 @@ const MoneyCalc = () => {
 
   const generateGraphData = () => {
     const data = [];
+    
     for (let year = 0; year <= timeframe; year++) {
       const yearData: any = { year };
       let totalValue = 0;
@@ -294,6 +321,7 @@ const MoneyCalc = () => {
           expectedReturn,
           year
         );
+        
         yearData[asset.name] = futureValue;
         totalValue += futureValue;
       });
@@ -301,8 +329,77 @@ const MoneyCalc = () => {
       yearData.Total = totalValue;
       data.push(yearData);
     }
+    
     return data;
   };
+
+  const generateIndividualAssetData = (asset: Asset) => {
+    const data = [];
+    for (let year = 0; year <= timeframe; year++) {
+      const expectedReturn = getAssetExpectedReturn(asset);
+      const futureValue = calculateFutureValue(
+        asset.value,
+        expectedReturn,
+        year
+      );
+      data.push({
+        year,
+        value: futureValue,
+        growth: year === 0 ? 0 : ((futureValue - asset.value) / asset.value) * 100
+      });
+    }
+    return data;
+  };
+
+
+
+  const generateCategoryGroupedData = () => {
+    // Group assets by category
+    const assetsByCategory = assets.reduce((groups, asset) => {
+      const category = asset.category;
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(asset);
+      return groups;
+    }, {} as Record<string, Asset[]>);
+
+    const data = [];
+    for (let year = 0; year <= timeframe; year++) {
+      const yearData: any = { year };
+      let totalValue = 0;
+      
+      // Calculate combined value for each category
+      Object.entries(assetsByCategory).forEach(([category, categoryAssets]) => {
+        let categoryTotal = 0;
+        categoryAssets.forEach((asset) => {
+          const expectedReturn = getAssetExpectedReturn(asset);
+          const futureValue = calculateFutureValue(
+            asset.value,
+            expectedReturn,
+            year
+          );
+          categoryTotal += futureValue;
+        });
+        
+        const categoryLabel = categoryLabels[category as keyof typeof categoryLabels] || category;
+        yearData[categoryLabel] = categoryTotal;
+        totalValue += categoryTotal;
+      });
+      
+      yearData.Total = totalValue;
+      data.push(yearData);
+    }
+    
+    return { 
+      data, 
+      categories: Object.keys(assetsByCategory).map(cat => 
+        categoryLabels[cat as keyof typeof categoryLabels] || cat
+      )
+    };
+  };
+
+
 
   const normalizeAsset = (doc: any): Asset => ({
     id: doc?.id ?? doc?._id ?? '',
@@ -373,41 +470,27 @@ const MoneyCalc = () => {
     notes: doc?.notes ?? undefined,
   });
 
-  // Category icons mapping
-  const categoryIcons = {
-    // Asset categories
-    realestate: Home,
-    investments: TrendingUp, 
-    vehicles: Car,
-    bank: Banknote,
-    cash: Wallet,
-    // Income categories
-    salary: Briefcase,
-    investment: TrendingUp,
-    gift: Gift,
-    // Expense categories  
-    shopping: ShoppingCart,
-    housing: Home,
-    transport: Car,
-    food: Utensils,
-    health: Heart,
-    travel: Plane,
-    utilities: Zap,
-    // Liability categories
-    homeloan: Home,
-    carloan: Car,
-    personalloan: User,
-    creditcard: CreditCard,
-    education: GraduationCap,
-    other: MoreHorizontal
-  };
+
 
   const handleAddAsset = async () => {
     if (!user?.id) return;
 
+    // Validate required fields
+    if (!assetFormData.name.trim()) {
+      setError('Asset name is required');
+      return;
+    }
+
     try {
+      setError(null);
       const valueRaw = Number.parseFloat(assetFormData.value);
       const value = Number.isNaN(valueRaw) ? 0 : valueRaw;
+      
+      if (value <= 0) {
+        setError('Asset value must be greater than 0');
+        return;
+      }
+      
       const appreciationRaw = assetFormData.appreciationRate
         ? Number.parseFloat(assetFormData.appreciationRate)
         : undefined;
@@ -450,9 +533,21 @@ const MoneyCalc = () => {
   const handleAddIncome = async () => {
     if (!user?.id) return;
 
+    // Validate required fields
+    if (!incomeFormData.source.trim()) {
+      setError('Income source is required');
+      return;
+    }
+
     try {
+      setError(null);
       const amountRaw = Number.parseFloat(incomeFormData.amount);
       const amount = Number.isNaN(amountRaw) ? 0 : amountRaw;
+      
+      if (amount <= 0) {
+        setError('Income amount must be greater than 0');
+        return;
+      }
 
       const response = await fetch(`${SERVER_URL}/api/user-profile/income`, {
         method: 'POST',
@@ -488,9 +583,21 @@ const MoneyCalc = () => {
   const handleAddExpense = async () => {
     if (!user?.id) return;
 
+    // Validate required fields
+    if (!expenseFormData.name.trim()) {
+      setError('Expense name is required');
+      return;
+    }
+
     try {
+      setError(null);
       const amountRaw = Number.parseFloat(expenseFormData.amount);
       const amount = Number.isNaN(amountRaw) ? 0 : amountRaw;
+      
+      if (amount <= 0) {
+        setError('Expense amount must be greater than 0');
+        return;
+      }
 
       const response = await fetch(`${SERVER_URL}/api/user-profile/expenses`, {
         method: 'POST',
@@ -527,9 +634,21 @@ const MoneyCalc = () => {
   const handleAddLiability = async () => {
     if (!user?.id) return;
 
+    // Validate required fields
+    if (!liabilityFormData.name.trim()) {
+      setError('Liability name is required');
+      return;
+    }
+
     try {
+      setError(null);
       const amountRaw = Number.parseFloat(liabilityFormData.amount);
       const amount = Number.isNaN(amountRaw) ? 0 : amountRaw;
+      
+      if (amount <= 0) {
+        setError('Liability amount must be greater than 0');
+        return;
+      }
       const interestRateRaw = liabilityFormData.interestRate
         ? Number.parseFloat(liabilityFormData.interestRate)
         : undefined;
@@ -837,6 +956,8 @@ const MoneyCalc = () => {
                 <button
                   onClick={() => {
                     setSelectedDataType('asset');
+                    setError(null);
+                    resetForms();
                     setIsModalOpen(true);
                   }}
                   className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl shadow-lg shadow-indigo-500/25 active:scale-95"
@@ -956,10 +1077,10 @@ const MoneyCalc = () => {
           )}
         </CalculatorCard>
 
-        {/* Growth Chart */}
-        <CalculatorCard title="Portfolio Growth Projection">
+        {/* Advanced Chart Section */}
+        <CalculatorCard title="Portfolio Growth Analysis">
           {assets.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg h-[400px] flex items-center justify-center">
+            <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg h-[500px] flex items-center justify-center">
               <div>
                 <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-300" />
                 <p className="text-gray-600 dark:text-gray-400 text-lg">No data to visualize</p>
@@ -969,96 +1090,195 @@ const MoneyCalc = () => {
               </div>
             </div>
           ) : (
-            <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={generateGraphData()}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#E5E7EB"
-                  opacity={0.5}
-                />
-                <XAxis
-                  dataKey="year"
-                  label={{ value: "Years", position: "bottom", offset: -5 }}
-                  tick={{ fontSize: 12 }}
-                  stroke="#6B7280"
-                />
-                <YAxis
-                  label={{
-                    value: "Value (₹)",
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: 10,
-                    style: { textAnchor: "middle" },
-                  }}
-                  tickFormatter={(value) => `₹${(value / 100000).toFixed(1)}L`}
-                  tick={{ fontSize: 12 }}
-                  stroke="#6B7280"
-                />
-                <Tooltip
-                  formatter={(value: number, name: string) => [
-                    formatRupees(value),
-                    name === "Total" ? "Total Portfolio" : name,
-                  ]}
-                  labelFormatter={(label) => `Year ${label}`}
-                  contentStyle={{
-                    backgroundColor: "rgba(255, 255, 255, 0.95)",
-                    borderRadius: "8px",
-                    border: "1px solid #E5E7EB",
-                    padding: "8px 12px",
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                  }}
-                  wrapperStyle={{
-                    outline: "none",
-                  }}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  height={36}
-                  iconType="circle"
-                  formatter={(value) => (
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {value === "Total" ? "Total Portfolio" : value}
-                    </span>
-                  )}
-                  wrapperStyle={{
-                    paddingTop: "20px",
-                  }}
-                />
-                {assets.map((asset, index) => (
-                  <Line
-                    key={asset.id || asset.name}
-                    type="monotone"
-                    dataKey={asset.name}
-                    stroke={colors[index % colors.length]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{
-                      r: 6,
-                      stroke: colors[index % colors.length],
-                      strokeWidth: 2,
-                      fill: "white",
-                    }}
-                  />
-                ))}
-                <Line
-                  type="monotone"
-                  dataKey="Total"
-                  stroke="#000000"
-                  strokeWidth={3}
-                  dot={false}
-                  activeDot={{
-                    r: 8,
-                    stroke: "#000000",
-                    strokeWidth: 2,
-                    fill: "white",
-                  }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="space-y-6">
+              {/* Chart Controls */}
+              <div className="flex flex-wrap gap-4 items-center justify-between bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Line Chart View</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View:</span>
+                    <select
+                      value={chartView}
+                      onChange={(e) => setChartView(e.target.value as 'consolidated' | 'individual' | 'by-category')}
+                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    >
+                      <option value="consolidated">All Assets Combined</option>
+                      <option value="by-category">Grouped by Asset Type</option>
+                      <option value="individual">Individual Assets</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Asset Selection for Individual Comparison */}
+                {chartView === 'individual' && assets.length > 3 && (
+                  <div className="flex flex-wrap gap-2">
+                    {assets.map((asset) => (
+                      <button
+                        key={asset.id || asset.name}
+                        onClick={() => {
+                          const assetKey = asset.id || asset.name;
+                          setSelectedAssets(prev => 
+                            prev.includes(assetKey) 
+                              ? prev.filter(id => id !== assetKey)
+                              : [...prev, assetKey]
+                          );
+                        }}
+                        className={`text-xs px-2 py-1 rounded-full border transition-all ${
+                          selectedAssets.includes(asset.id || asset.name)
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                        }`}
+                      >
+                        {selectedAssets.includes(asset.id || asset.name) ? (
+                          <Eye className="w-3 h-3 inline mr-1" />
+                        ) : (
+                          <EyeOff className="w-3 h-3 inline mr-1" />
+                        )}
+                        {asset.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Chart Rendering */}
+              {chartView === 'consolidated' && (
+                <div className="h-[500px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={generateGraphData()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" opacity={0.5} />
+                      <XAxis dataKey="year" label={{ value: "Years", position: "bottom", offset: -5 }} tick={{ fontSize: 12 }} stroke="#6B7280" />
+                      <YAxis
+                        domain={['dataMin * 0.95', 'dataMax * 1.05']}
+                        label={{ value: "Value (₹)", angle: -90, position: "insideLeft", offset: 10, style: { textAnchor: "middle" } }}
+                        tickFormatter={(value) => {
+                          if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+                          else if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
+                          else return `₹${value.toFixed(0)}`;
+                        }}
+                        tick={{ fontSize: 12 }}
+                        stroke="#6B7280"
+                      />
+                      <Tooltip
+                        formatter={(value: number, name: string) => [formatRupees(value), name === "Total" ? "Total Portfolio" : name]}
+                        labelFormatter={(label) => `Year ${label}`}
+                        contentStyle={{ backgroundColor: "rgba(255, 255, 255, 0.95)", borderRadius: "8px", border: "1px solid #E5E7EB", padding: "8px 12px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}
+                      />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                      {assets.map((asset, index) => (
+                        <Line
+                          key={asset.id || asset.name}
+                          type="monotone"
+                          dataKey={asset.name}
+                          stroke={colors[index % colors.length]}
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 6, stroke: colors[index % colors.length], strokeWidth: 2, fill: "white" }}
+                        />
+                      ))}
+                      <Line type="monotone" dataKey="Total" stroke="#000000" strokeWidth={3} dot={false} activeDot={{ r: 8, stroke: "#000000", strokeWidth: 2, fill: "white" }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {chartView === 'by-category' && (
+                <div className="h-[500px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {(() => {
+                      const { data, categories } = generateCategoryGroupedData();
+                      return (
+                        <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" opacity={0.5} />
+                          <XAxis dataKey="year" label={{ value: "Years", position: "bottom", offset: -5 }} tick={{ fontSize: 12 }} stroke="#6B7280" />
+                          <YAxis
+                            domain={['dataMin * 0.95', 'dataMax * 1.05']}
+                            label={{ value: "Value (₹)", angle: -90, position: "insideLeft", offset: 10, style: { textAnchor: "middle" } }}
+                            tickFormatter={(value) => {
+                              if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+                              else if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
+                              else return `₹${value.toFixed(0)}`;
+                            }}
+                            tick={{ fontSize: 12 }}
+                            stroke="#6B7280"
+                          />
+                          <Tooltip
+                            formatter={(value: number, name: string) => [formatRupees(value), name === "Total" ? "Total Portfolio" : name]}
+                            labelFormatter={(label) => `Year ${label}`}
+                            contentStyle={{ backgroundColor: "rgba(255, 255, 255, 0.95)", borderRadius: "8px", border: "1px solid #E5E7EB", padding: "8px 12px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}
+                          />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                          {categories.map((category, index) => (
+                            <Line
+                              key={category}
+                              type="monotone"
+                              dataKey={category}
+                              stroke={colors[index % colors.length]}
+                              strokeWidth={3}
+                              dot={false}
+                              activeDot={{ r: 6, stroke: colors[index % colors.length], strokeWidth: 2, fill: "white" }}
+                            />
+                          ))}
+                          <Line type="monotone" dataKey="Total" stroke="#000000" strokeWidth={4} dot={false} activeDot={{ r: 8, stroke: "#000000", strokeWidth: 2, fill: "white" }} />
+                        </LineChart>
+                      );
+                    })()}
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+
+
+              {chartView === 'individual' && (
+                <div className="grid gap-4">
+                  {assets.map((asset, index) => (
+                    <div key={asset.id || asset.name} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                      <h4 className="font-semibold text-lg mb-2 text-gray-900 dark:text-gray-100">
+                        {asset.name} - {formatRupees(asset.value)}
+                      </h4>
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        Expected Return: {getAssetExpectedReturn(asset)}% | 
+                        Category: {categoryLabels[asset.category as keyof typeof categoryLabels] || asset.category}
+                      </div>
+                      <div className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          {(() => {
+                            const individualData = generateIndividualAssetData(asset);
+                            return (
+                              <LineChart data={individualData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" opacity={0.5} />
+                                <XAxis dataKey="year" tick={{ fontSize: 12 }} stroke="#6B7280" />
+                                <YAxis
+                                  tickFormatter={(value) => {
+                                    if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+                                    else if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
+                                    else return `₹${value.toFixed(0)}`;
+                                  }}
+                                  tick={{ fontSize: 12 }}
+                                  stroke="#6B7280"
+                                />
+                                <Tooltip formatter={(value: number) => formatRupees(value)} />
+                                <Line
+                                  type="monotone"
+                                  dataKey="value"
+                                  stroke={colors[index % colors.length]}
+                                  strokeWidth={3}
+                                  dot={false}
+                                  activeDot={{ r: 6 }}
+                                />
+                              </LineChart>
+                            );
+                          })()}
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </CalculatorCard>
@@ -1073,7 +1293,10 @@ const MoneyCalc = () => {
                 Add Financial Data
               </h3>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setError(null);
+                }}
                 className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
               >
                 <X className="w-5 h-5" />
@@ -1088,7 +1311,10 @@ const MoneyCalc = () => {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setSelectedDataType('asset')}
+                  onClick={() => {
+                    setSelectedDataType('asset');
+                    setError(null);
+                  }}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     selectedDataType === 'asset'
                       ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
@@ -1106,7 +1332,10 @@ const MoneyCalc = () => {
                 
                 <button
                   type="button"
-                  onClick={() => setSelectedDataType('income')}
+                  onClick={() => {
+                    setSelectedDataType('income');
+                    setError(null);
+                  }}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     selectedDataType === 'income'
                       ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
@@ -1124,7 +1353,10 @@ const MoneyCalc = () => {
                 
                 <button
                   type="button"
-                  onClick={() => setSelectedDataType('expense')}
+                  onClick={() => {
+                    setSelectedDataType('expense');
+                    setError(null);
+                  }}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     selectedDataType === 'expense'
                       ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
@@ -1142,7 +1374,10 @@ const MoneyCalc = () => {
                 
                 <button
                   type="button"
-                  onClick={() => setSelectedDataType('liability')}
+                  onClick={() => {
+                    setSelectedDataType('liability');
+                    setError(null);
+                  }}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     selectedDataType === 'liability'
                       ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
@@ -1162,6 +1397,11 @@ const MoneyCalc = () => {
 
             {/* Dynamic Form Based on Selected Type */}
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                  <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+                </div>
+              )}
               {selectedDataType === 'asset' && (
                 <>
                   <div>
@@ -1234,11 +1474,20 @@ const MoneyCalc = () => {
                       value={assetFormData.appreciationRate}
                       onChange={(e) => setAssetFormData({ ...assetFormData, appreciationRate: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                      placeholder="5.5"
-                      min="0"
+                      placeholder={
+                        assetFormData.category === 'investments' ? '10-12% (Mutual Funds)' :
+                        assetFormData.category === 'bank' ? '4-6% (FD/Savings)' :
+                        assetFormData.category === 'realestate' ? '8% (Property)' :
+                        assetFormData.category === 'vehicles' ? '0% (Depreciates)' :
+                        '6%'
+                      }
+                      min="-20"
                       max="100"
                       step="0.1"
                     />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Leave empty for smart defaults. Use negative values for depreciating assets.
+                    </p>
                   </div>
 
                   <div>
@@ -1520,11 +1769,21 @@ const MoneyCalc = () => {
                       value={liabilityFormData.interestRate}
                       onChange={(e) => setLiabilityFormData({ ...liabilityFormData, interestRate: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
-                      placeholder="8.5"
+                      placeholder={
+                        liabilityFormData.category === 'homeloan' ? '8.5% (Home Loan)' :
+                        liabilityFormData.category === 'carloan' ? '10% (Car Loan)' :
+                        liabilityFormData.category === 'personalloan' ? '12% (Personal Loan)' :
+                        liabilityFormData.category === 'creditcard' ? '36% (Credit Card)' :
+                        liabilityFormData.category === 'education' ? '9% (Education Loan)' :
+                        '10%'
+                      }
                       min="0"
                       max="100"
                       step="0.1"
                     />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Leave empty for typical rates based on loan type.
+                    </p>
                   </div>
 
                   <div>
@@ -1572,7 +1831,10 @@ const MoneyCalc = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setError(null);
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   Cancel
