@@ -8,11 +8,17 @@ import {
   MarketSummaryResponse 
 } from '../types';
 
-// --- NEW INTERFACE FOR AI ANALYSIS ---
+// --- NEW INTERFACE FOR AI ANALYSIS (UPDATED FOR 4 IMAGES) ---
 export interface StockAnalysisResponse {
   success: boolean;
   analysis: string;
-  image: string | null;
+  // CHANGED: Expects a dictionary of 4 images
+  images: {
+    price_history: string | null;
+    daily_returns: string | null;
+    holdout_pred: string | null;
+    future_forecast: string | null;
+  };
   error?: string;
 }
 
@@ -180,12 +186,17 @@ class StockApiService {
       return response.data;
     } catch (error: any) {
       console.error('Error analyzing stock:', error);
-      // Return a structured error response instead of throwing, 
+      // Return a structured error response with empty images object
       // so the UI can handle it gracefully without crashing.
       return {
         success: false,
         analysis: '',
-        image: null,
+        images: {
+            price_history: null,
+            daily_returns: null,
+            holdout_pred: null,
+            future_forecast: null
+        },
         error: error.response?.data?.error || error.message || 'Failed to communicate with analysis server'
       };
     }

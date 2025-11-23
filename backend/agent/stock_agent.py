@@ -1,30 +1,33 @@
 import os
 import sys
 from pathlib import Path
+from typing import TypedDict, Annotated, Sequence, Dict
 
-# Add the project root directory to Python path to ensure imports work
+# Add project root to path
 project_root = str(Path(__file__).parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from typing import TypedDict, Annotated, Sequence
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.graph import StateGraph, END
+
+# Import Models
 from mlmodels.stock_data import StockData
 from mlmodels.stock_model_holdout import StockModelHoldout
 from mlmodels.stock_hyperopt import StockHyperopt
+
 import matplotlib
-matplotlib.use('Agg')  # Use Agg backend to avoid GUI issues on server
+matplotlib.use('Agg') # Crucial for server-side plotting
 from datetime import datetime, timedelta
 import re
 
 # Load environment variables
 load_dotenv()
 
-# Define the state type
+# --- 1. UPDATED STATE DEFINITION ---
 class AgentState(TypedDict):
     messages: Annotated[Sequence[HumanMessage | AIMessage], "The conversation history"]
     stock_data: StockData | None
@@ -32,88 +35,63 @@ class AgentState(TypedDict):
     hyperopt_model: StockHyperopt | None
     last_action: str | None
     error: str | None
-    image_data: str | None  # Added to store Base64 image string for frontend
+    # CHANGE: Now stores a dictionary of multiple images
+    images: Dict[str, str] 
 
-# Initialize the LLM
+# Initialize LLM
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",
     google_api_key=os.getenv("GEMINI_API_KEY"), 
     temperature=0.7
 )
 
-class StockAgent:
-    def __init__(self):
-        self.llm = llm
-
-# Define the system prompt with explicit Indian Market instructions
-system_prompt = """You are a helpful stock market analysis assistant specializing in the INDIAN STOCK MARKET (NSE/BSE).
-Your role is to:
-1. Understand user requests about stock data.
-2. Extract stock tickers. **CRITICAL:** If the user gives a company name (e.g., "Reliance", "TCS", "HDFC"), convert it to the Yahoo Finance ticker format with '.NS' suffix (e.g., "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS").
-3. Perform appropriate analysis (historical data, forecasting, or hyperparameter tuning).
-4. Provide clear and informative responses.
-
-When analyzing stocks, you can:
-- Show historical price data
-- Create forecasts using Prophet
-- Tune hyperparameters for better predictions
-
-Always be clear about what you're doing and explain the results in a way that's easy to understand."""
-
-# Create the prompt template
-prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
-    MessagesPlaceholder(variable_name="messages"),
-])
-
+# Date parsing utility (Unchanged)
 def parse_relative_date(date_str: str) -> str:
-    """Convert relative date expressions to YYYY-MM-DD format."""
     today = datetime.now()
     if date_str.lower() == "today":
         return today.strftime('%Y-%m-%d')
-    
     match = re.match(r'(\d+)\s+years?\s+ago', date_str.lower())
     if match:
         years = int(match.group(1))
         return (today - timedelta(days=years*365)).strftime('%Y-%m-%d')
-    
     match = re.match(r'(\d+)\s+months?\s+ago', date_str.lower())
     if match:
         months = int(match.group(1))
         return (today - timedelta(days=months*30)).strftime('%Y-%m-%d')
-    
     match = re.match(r'(\d+)\s+days?\s+ago', date_str.lower())
     if match:
         days = int(match.group(1))
         return (today - timedelta(days=days)).strftime('%Y-%m-%d')
-    
     try:
         datetime.strptime(date_str, '%Y-%m-%d')
         return date_str
     except ValueError:
         return today.strftime('%Y-%m-%d')
 
-# --- NODES ---
+# --- 2. NODES ---
 
 def extract_stock_info(state: AgentState) -> AgentState:
-    """Extract stock information from user input."""
+    """Extract stock information and initialize image dict."""
     try:
         last_message = state["messages"][-1].content
         
-        # LLM extraction with explicit instruction for Indian Tickers
+        # Initialize empty images dict for this run
+        state["images"] = {}
+        state["error"] = None
+
         response = llm.invoke([
             HumanMessage(content=f"""Extract the stock ticker symbol and date range from: "{last_message}"
             
             IMPORTANT RULES FOR INDIAN STOCKS:
             - Convert company names to their NSE ticker symbol ending in '.NS'.
-            - Example: "Reliance" -> "RELIANCE.NS", "Tata Motors" -> "TATAMOTORS.NS", "Zomato" -> "ZOMATO.NS".
+            - Example: "Reliance" -> "RELIANCE.NS", "Tata Motors" -> "TATAMOTORS.NS".
             
             Return format:
             TICKER: [ticker]
             START_DATE: [start_date]
             END_DATE: [end_date]
             
-            Defaults if missing: start_date = 3 years ago, end_date = today""")
+            Defaults: start_date = 3 years ago, end_date = today""")
         ])
         
         info = {}
@@ -127,9 +105,8 @@ def extract_stock_info(state: AgentState) -> AgentState:
         end_date = parse_relative_date(info.get('END_DATE', 'today'))
         
         if ticker:
-            # Initialize StockData with the extracted ticker
             state["stock_data"] = StockData(ticker, start_date, end_date)
-            # We try fetching here to validate the ticker early
+            # Fetch data immediately to fail fast if invalid
             state["stock_data"].fetch_closing_prices()
             
         return state
@@ -138,118 +115,112 @@ def extract_stock_info(state: AgentState) -> AgentState:
         state["error"] = str(e)
         return state
 
-def analyze_historical_data(state: AgentState) -> AgentState:
-    """Analyze historical stock data."""
+def run_full_pipeline(state: AgentState) -> AgentState:
+    """
+    Runs the complete analysis pipeline sequentially:
+    1. Historical Analysis (2 Images)
+    2. Holdout Validation (1 Image + Metrics)
+    3. Hyperopt Forecast (1 Image + Best Params)
+    """
     try:
-        if state["stock_data"] and state["stock_data"].dataframe is not None:
-            # Generate Image and store Base64 string in state
-            img_base64 = state["stock_data"].visualize_data()
-            state["image_data"] = img_base64
-            state["last_action"] = f"Historical analysis completed for {state['stock_data'].ticker}."
-        else:
-            state["last_action"] = "No stock data available for analysis"
-            
-        return state
-    except Exception as e:
-        state["last_action"] = f"Error in historical analysis: {str(e)}"
-        return state
+        if not state["stock_data"] or state["stock_data"].dataframe is None:
+            state["error"] = "No data available for analysis."
+            return state
 
-def run_holdout_analysis(state: AgentState) -> AgentState:
-    """Run holdout analysis."""
-    try:
-        if state["stock_data"]:
-            state["holdout_model"] = StockModelHoldout(state["stock_data"])
-            metrics = state["holdout_model"].run_analysis()
-            
-            # Generate Image (Base64)
-            img_base64 = state["holdout_model"].visualize_forecast()
-            state["image_data"] = img_base64
-            
-            metrics_msg = "\n".join([f"{metric}: {value:.4f}" for metric, value in metrics.items()])
-            state["last_action"] = f"Holdout analysis completed. Metrics:\n{metrics_msg}"
-        else:
-            state["last_action"] = "No stock data available for holdout analysis"
-            
-        return state
-    except Exception as e:
-        state["last_action"] = f"Error in holdout analysis: {str(e)}"
-        return state
+        print(f"Starting pipeline for {state['stock_data'].ticker}...")
 
-def run_hyperopt_analysis(state: AgentState) -> AgentState:
-    """Run hyperparameter optimization."""
-    try:
-        if state["stock_data"]:
-            state["hyperopt_model"] = StockHyperopt(state["stock_data"])
-            # Reduced max_evals to 10 for faster web response
-            best_params = state["hyperopt_model"].run_analysis(max_evals=10)
-            
-            # Generate Image (Base64)
-            img_base64 = state["hyperopt_model"].visualize_forecast()
-            state["image_data"] = img_base64
-            
-            params_msg = "\n".join([f"{param}: {value}" for param, value in best_params.items()])
-            state["last_action"] = f"Optimization completed. Best parameters:\n{params_msg}"
-        else:
-            state["last_action"] = "No stock data available for optimization"
-            
-        return state
-    except Exception as e:
-        state["last_action"] = f"Error in hyperopt analysis: {str(e)}"
-        return state
-
-def generate_response(state: AgentState) -> AgentState:
-    """Generate final response."""
-    try:
-        messages = state["messages"]
-        context = f"Last action: {state['last_action']}\n\nUser's last message: {messages[-1].content}"
+        # --- STEP 1: HISTORICAL DATA (2 IMAGES) ---
+        # Image 1: Price History
+        state["images"]["price_history"] = state["stock_data"].get_price_plot()
+        # Image 2: Daily Returns
+        state["images"]["daily_returns"] = state["stock_data"].get_returns_plot()
         
-        response = llm.invoke([HumanMessage(content=context)])
-        state["messages"].append(AIMessage(content=response.content))
+        # --- STEP 2: HOLDOUT VALIDATION (1 IMAGE) ---
+        holdout = StockModelHoldout(state["stock_data"])
+        metrics = holdout.run_analysis() # Train/Test split analysis
+        state["holdout_model"] = holdout
+        # Image 3: Actual vs Predicted
+        state["images"]["holdout_pred"] = holdout.visualize_forecast()
+        
+        # --- STEP 3: HYPEROPT FORECAST (1 IMAGE) ---
+        hyperopt = StockHyperopt(state["stock_data"])
+        # Run optimization (max_evals=10 for speed on web)
+        best_params = hyperopt.run_analysis(max_evals=10) 
+        state["hyperopt_model"] = hyperopt
+        # Image 4: Future Forecast
+        state["images"]["future_forecast"] = hyperopt.visualize_forecast()
+
+        # Save technical details for the LLM to summarize
+        metrics_str = ", ".join([f"{k}: {v:.4f}" for k, v in metrics.items()])
+        state["last_action"] = (
+            f"Successfully generated 4 charts.\n"
+            f"Validation Metrics: {metrics_str}\n"
+            f"Optimized Params: {best_params}"
+        )
+        print("Pipeline completed successfully.")
         
         return state
+
     except Exception as e:
-        state["messages"].append(AIMessage(content=f"Error generating response: {str(e)}"))
+        error_msg = f"Pipeline execution failed: {str(e)}"
+        print(error_msg)
+        state["error"] = error_msg
+        state["last_action"] = error_msg
         return state
 
-# --- GRAPH SETUP ---
+def generate_summary(state: AgentState) -> AgentState:
+    """Generate a comprehensive summary of all findings."""
+    try:
+        if state["error"]:
+            response_text = f"I encountered an error during the analysis: {state['error']}. Please check the ticker symbol and try again."
+        else:
+            ticker = state["stock_data"].ticker
+            # Rich context for the LLM
+            context = f"""
+            You have successfully analyzed {ticker} for the Indian Market.
+            
+            The system has generated 4 visual charts for the user:
+            1. Closing Price History (Trend)
+            2. Daily Returns Distribution (Volatility)
+            3. Validation Model (Actual vs Predicted)
+            4. Future Forecast (Next Year Prediction)
+            
+            Technical Data:
+            {state['last_action']}
+            
+            User's Original Request: {state['messages'][-1].content}
+            
+            Please provide a structured summary (plain text, no markdown) that:
+            1. Summarizes the historical trend and volatility.
+            2. Explains the validation metrics (RMSE/MAE) - is the model trustworthy?
+            3. Interprets the future forecast direction.
+            4. Ends with a neutral disclaimer that this is AI-generated analysis, not financial advice.
+            """
+            
+            response = llm.invoke([HumanMessage(content=context)])
+            response_text = response.content
+
+        state["messages"].append(AIMessage(content=response_text))
+        return state
+    except Exception as e:
+        state["messages"].append(AIMessage(content=f"Error generating summary: {str(e)}"))
+        return state
+
+# --- 3. GRAPH SETUP (LINEAR PIPELINE) ---
 
 workflow = StateGraph(AgentState)
 
-workflow.add_node("extract_stock_info", extract_stock_info)
-workflow.add_node("analyze_historical", analyze_historical_data)
-workflow.add_node("run_holdout", run_holdout_analysis)
-workflow.add_node("run_hyperopt", run_hyperopt_analysis)
-workflow.add_node("generate_response", generate_response)
+# Add Nodes
+workflow.add_node("extract_info", extract_stock_info)
+workflow.add_node("run_pipeline", run_full_pipeline)
+workflow.add_node("summarize", generate_summary)
 
-def route_based_on_intent(state: AgentState) -> str:
-    last_message = state["messages"][-1].content.lower()
-    if "forecast" in last_message and ("tune" in last_message or "optimize" in last_message):
-        return "run_hyperopt"
-    elif "forecast" in last_message or "predict" in last_message:
-        return "run_holdout" # Or default to Hyperopt if you prefer accuracy
-    elif "historical" in last_message or "price" in last_message:
-        return "analyze_historical"
-    else:
-        # Default to Holdout for generic "Analyze X" requests as it's a good balance
-        return "run_holdout" 
+# Define Linear Flow (No routing needed for full report)
+workflow.add_edge("extract_info", "run_pipeline")
+workflow.add_edge("run_pipeline", "summarize")
+workflow.add_edge("summarize", END)
 
-workflow.add_conditional_edges(
-    "extract_stock_info",
-    route_based_on_intent,
-    {
-        "analyze_historical": "analyze_historical",
-        "run_holdout": "run_holdout",
-        "run_hyperopt": "run_hyperopt",
-        "generate_response": "generate_response"
-    }
-)
-
-workflow.add_edge("analyze_historical", "generate_response")
-workflow.add_edge("run_holdout", "generate_response")
-workflow.add_edge("run_hyperopt", "generate_response")
-workflow.add_edge("generate_response", END)
-
-workflow.set_entry_point("extract_stock_info")
+workflow.set_entry_point("extract_info")
 app = workflow.compile()
 
 class StockAgent:
@@ -261,13 +232,18 @@ class StockAgent:
             "hyperopt_model": None,
             "last_action": None,
             "error": None,
-            "image_data": None
+            "images": {} # Initialize empty dict for images
         }
         
     def process_user_input(self, user_input: str) -> str:
         try:
-            self.state["messages"].append(HumanMessage(content=user_input))
-            self.state = app.invoke(self.state)
+            self.state["messages"] = [HumanMessage(content=user_input)]
+            # Invoke the graph
+            result_state = app.invoke(self.state)
+            
+            # Update internal state with result so images can be accessed by API
+            self.state = result_state 
+            
             return self.state["messages"][-1].content
         except Exception as e:
             return f"Error processing request: {str(e)}"
@@ -275,4 +251,7 @@ class StockAgent:
 # For testing
 if __name__ == "__main__":
     agent = StockAgent()
-    print(agent.process_user_input("Forecast Reliance"))
+    print("Running test...")
+    response = agent.process_user_input("Forecast Reliance")
+    print("\nResponse:", response)
+    print("\nImages generated:", list(agent.state["images"].keys()))
