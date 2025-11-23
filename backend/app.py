@@ -147,14 +147,14 @@ def init_app():
 def home():
     """Health check endpoint for the FinEdge API."""
     return jsonify({
-        "status": "healthy",
+        "status": "running",
         "message": "FinEdge API is running",
         "version": "1.0.0",
-        "endpoints": [
-            "/agent - AI Financial Agent",
-            "/api/market-summary - Market Data",
-            "/ai-financial-path - Financial Planning"
-        ]
+        # "endpoints": [
+        #     "/agent - AI Financial Agent",
+        #     "/api/market-summary - Market Data",
+        #     "/ai-financial-path - Financial Planning"
+        # ]
     })
 
 # =================== DYNAMIC APIS ===================
