@@ -628,51 +628,86 @@ tools = initialize_tools()
 
 # If the module 'get_current_price' tool exists in tools list, keep it.
 # Otherwise, add our robust wrapper that uses yfinance helper above.
-def _get_current_price_wrapper(arg: str):
-    """
-    Wrapper for ReAct agent tool calling. Accepts either a symbol or natural language,
-    resolves to a symbol, and returns JSON-like string result.
-    """
-    try:
-        # If the user passed something like "price of Adani Green", extract the company phrase
-        # crude extraction: take last 6-8 words after 'price' or 'current price'
-        text = (arg or "").strip()
-        # Try to extract quoted substring if provided
-        m = re.search(r'["“](.+?)["”]', text)
-        company = None
-        if m:
-            company = m.group(1)
-        else:
-            # try common patterns
-            m2 = re.search(r'price of (.+)', text, flags=re.I)
-            if m2:
-                company = m2.group(1)
-            else:
-                # fallback: take last 4 words as company
-                parts = text.split()
-                company = " ".join(parts[-4:]) if len(parts) >= 1 else text
+# def _get_current_price_wrapper(arg: str):
+#     """
+#     Wrapper for ReAct agent tool calling. Accepts either a symbol or natural language,
+#     resolves to a symbol, and returns JSON-like string result.
+#     """
+#     try:
+#         # If the user passed something like "price of Adani Green", extract the company phrase
+#         # crude extraction: take last 6-8 words after 'price' or 'current price'
+#         text = (arg or "").strip()
+#         # Try to extract quoted substring if provided
+#         m = re.search(r'["“](.+?)["”]', text)
+#         company = None
+#         if m:
+#             company = m.group(1)
+#         else:
+#             # try common patterns
+#             m2 = re.search(r'price of (.+)', text, flags=re.I)
+#             if m2:
+#                 company = m2.group(1)
+#             else:
+#                 # fallback: take last 4 words as company
+#                 parts = text.split()
+#                 company = " ".join(parts[-4:]) if len(parts) >= 1 else text
 
-        symbol = resolve_ticker(company)
-        data = fetch_stock_price_by_symbol(symbol)
-        return data
-    except Exception as e:
-        return {"error": str(e)}
+#         symbol = resolve_ticker(company)
+#         data = fetch_stock_price_by_symbol(symbol)
+#         return data
+#     except Exception as e:
+#         return {"error": str(e)}
 
-# Add wrapper into tools map for MinimalToolAgent if not present
-try:
-    # If explicit tool exists (from tools.mytools) prefer that name
-    found = False
+# # Add wrapper into tools map for MinimalToolAgent if not present
+# try:
+#     # If explicit tool exists (from tools.mytools) prefer that name
+#     found = False
+#     for t in tools or []:
+#         name = getattr(t, "name", None) or getattr(t, "__name__", None)
+#         if name and name.lower() == "get_current_price".lower():
+#             found = True
+#             break
+#     if not found:
+#         # expose wrapper as a simple callable with name 'get_current_price'
+#         tools = (tools or []) + [_get_current_price_wrapper]
+#         logger.info("Added _get_current_price_wrapper to tools for robust price fetching")
+# except Exception as e:
+#     logger.warning(f"Failed to register price wrapper: {e}")
+
+# ---------------------------
+# Register / wrap get_current_price tool
+# ---------------------------
+# The tool is now properly defined in mytools.py with @tool decorator
+# No need for wrapper - just ensure it's imported correctly
+
+def validate_tools_loaded():
+    """Validate that critical financial tools are loaded"""
+    tool_names = []
     for t in tools or []:
-        name = getattr(t, "name", None) or getattr(t, "__name__", None)
-        if name and name.lower() == "get_current_price".lower():
-            found = True
-            break
-    if not found:
-        # expose wrapper as a simple callable with name 'get_current_price'
-        tools = (tools or []) + [_get_current_price_wrapper]
-        logger.info("Added _get_current_price_wrapper to tools for robust price fetching")
-except Exception as e:
-    logger.warning(f"Failed to register price wrapper: {e}")
+        try:
+            name = getattr(t, "name", None) or getattr(t, "__name__", None)
+            if name:
+                tool_names.append(name.lower())
+        except Exception:
+            continue
+    
+    critical_tools = ["get_current_price", "get_historical_price", "get_company_info"]
+    missing = [t for t in critical_tools if t not in tool_names]
+    
+    if missing:
+        logger.error(f"Critical tools missing: {missing}")
+        logger.error(f"Available tools: {tool_names}")
+        return False
+    
+    logger.info(f"✅ All critical financial tools loaded: {tool_names}")
+    return True
+
+# Validate tool loading
+if tools:
+    validate_tools_loaded()
+else:
+    logger.error("❌ No tools loaded! Agent will not function properly.")
+
 
 
 
@@ -829,33 +864,78 @@ if react_llm:
                 # ENHANCED TOOL FINDING WITH HEURISTICS
                 # =============================================================
 
+                # def _find_tool_for_query(self, query_text: str):
+                #     q = query_text.lower()
+                #     # exact name match or contained name (prefers longer names)
+                #     best = None
+                #     for name in sorted(self.tools_map.keys(), key=lambda x: -len(x)):
+                #         if name in q:
+                #             best = name
+                #             break
+                #     # Additional heuristic: if user asks about 'price', 'current price', 'trading at', map to get_current_price
+                #     if not best:
+                #         if re.search(r'\b(price|current price|trading at|cmp|share price|stock price)\b', q):
+                #             # prefer tool named like get_current_price if available
+                #             for candidate in ("get_current_price", "current_price", "price", "price_lookup"):
+                #                 if candidate in self.tools_map:
+                #                     best = candidate
+                #                     break
+                #             # final fallback: if wrapper function added without specific name, attempt to find a callable that returns dict with 'price'
+                #             if not best:
+                #                 for nm, fn in self.tools_map.items():
+                #                     try:
+                #                         # quick probe: don't actually call, but match name heuristics
+                #                         if "price" in nm:
+                #                             best = nm
+                #                             break
+                #                     except Exception:
+                #                         continue
+                #     return best
+
+
+
+
+                # ==============================================================================================================================================================================
+                # CHANGING THAT FUNCTION AGAIN 
+                # ==============================================================================================================================================================================
                 def _find_tool_for_query(self, query_text: str):
+                    """Enhanced tool matching with better heuristics"""
                     q = query_text.lower()
-                    # exact name match or contained name (prefers longer names)
-                    best = None
+    
+                    # Priority 1: Exact or substring match
                     for name in sorted(self.tools_map.keys(), key=lambda x: -len(x)):
                         if name in q:
-                            best = name
-                            break
-                    # Additional heuristic: if user asks about 'price', 'current price', 'trading at', map to get_current_price
-                    if not best:
-                        if re.search(r'\b(price|current price|trading at|cmp|share price|stock price)\b', q):
-                            # prefer tool named like get_current_price if available
-                            for candidate in ("get_current_price", "current_price", "price", "price_lookup"):
+                            return name
+    
+                    # Priority 2: Keyword-based heuristics for price queries
+                    price_keywords = [
+                    r'\b(current price|price|trading at|cmp|share price|stock price|trading price)\b',
+                    r'\b(sensex|nifty|index)\b',
+                    r'\b(how much|what.*price|price.*of)\b'
+                    ]
+    
+                    import re
+                    for pattern in price_keywords:
+                        if re.search(pattern, q):
+                            for candidate in ["get_current_price", "current_price", "get_price"]:
                                 if candidate in self.tools_map:
-                                    best = candidate
-                                    break
-                            # final fallback: if wrapper function added without specific name, attempt to find a callable that returns dict with 'price'
-                            if not best:
-                                for nm, fn in self.tools_map.items():
-                                    try:
-                                        # quick probe: don't actually call, but match name heuristics
-                                        if "price" in nm:
-                                            best = nm
-                                            break
-                                    except Exception:
-                                        continue
-                    return best
+                                    logger.info(f"Matched '{candidate}' tool via keyword pattern: {pattern}")
+                                    return candidate
+    
+                    # Priority 3: Historical data queries
+                    if re.search(r'\b(historical|history|past|previous|last.*days)\b', q):
+                        for candidate in ["get_historical_price", "historical_price"]:
+                            if candidate in self.tools_map:
+                                return candidate
+    
+                    # Priority 4: Company info queries
+                    if re.search(r'\b(info|information|details|about.*company)\b', q):
+                        for candidate in ["get_company_info", "company_info"]:
+                            if candidate in self.tools_map:
+                                return candidate
+    
+                    return None
+
 
 
                 def invoke(self, payload):
