@@ -2,8 +2,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
-import { useTheme } from "../context/ThemeContext";
+// import { useTheme } from "../context/ThemeContext";
 import { useMarketSummary } from "../hooks/useStockData";
+import GlimpseSection from "../components/GlimpseSection";
 import {
   TrendingUp,
   Shield,
@@ -119,7 +120,7 @@ export default function Home() {
         short:
           "Live updates for NIFTY, SENSEX, BANKNIFTY with AI-powered analysis.",
         long: "Our system continuously monitors BSE and NSE exchanges, providing you with real-time data updates. Get instant alerts on significant market movements, trend analysis, and personalized insights powered by machine learning algorithms.",
-        color: "from-blue-500 to-indigo-400",
+        color: "from-blue-500 to-indigo-3",
       },
       {
         id: "portfolio",
@@ -128,7 +129,7 @@ export default function Home() {
         short:
           "AI-driven insights and tailored recommendations for your investments.",
         long: "Set your financial goals, risk tolerance, and investment horizon. Our AI engine analyzes your portfolio composition, suggests rebalancing strategies, identifies sector allocations, and provides personalized stock recommendations based on your unique financial profile.",
-        color: "from-indigo-500 to-purple-400",
+        color: "from-indigo-500 to-purple-3",
       },
       {
         id: "learning",
@@ -137,7 +138,7 @@ export default function Home() {
         short:
           "Money Matters modules and comprehensive financial education resources.",
         long: "Access our curated learning paths covering technical analysis, fundamental analysis, options trading, and risk management. Interactive quizzes, real-world case studies, and simulated trading environments help you learn by doing.",
-        color: "from-purple-500 to-fuchsia-400",
+        color: "from-purple-500 to-fuchsia-3",
       },
       {
         id: "analysis",
@@ -145,7 +146,7 @@ export default function Home() {
         title: "Advanced Market Analysis",
         short: "AI-powered predictions and trend analysis for Indian markets.",
         long: "Leverage machine learning models that analyze historical patterns, news sentiment, FII/DII flows, and global market correlations. Identify potential breakout stocks, support/resistance levels, and market trends before they become obvious.",
-        color: "from-indigo-500 to-blue-400",
+        color: "from-indigo-500 to-blue-3",
       },
     ],
     []
@@ -189,7 +190,7 @@ export default function Home() {
       </div>
       {/* HERO SECTION */}
       <section className="relative min-h-screen flex items-center bg-white dark:bg-slate-950">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10">
           <div className="grid lg:grid-cols-2 gap-20 items-center">
             <div className="space-y-8">
@@ -198,14 +199,12 @@ export default function Home() {
                   Welcome to
                 </span>
                 <span
-                  className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 
-    bg-clip-text text-transparent"
-                >
+                  className="block bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 bg-clip-text text-transparent leading-tight pb-1">
                   FinEdge
                 </span>
               </h1>
 
-              <p className="text-xl text-neutral-800 dark:text-slate-400 max-w-xl leading-relaxed">
+              <p className="text-xl text-neutral-800 dark:text-slate-700 max-w-xl leading-relaxed">
                 AI-based advisory for Indian markets: adaptive models, portfolio
                 guidance, and contextual learning designed for clarity.
               </p>
@@ -224,24 +223,49 @@ export default function Home() {
                 </button>
               </div>
               {/* Stats (icon-based, no emojis) */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-10 border-t border-purple-200 dark:border-slate-800">
+              {/* <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-10 border-t border-purple-200 dark:border-slate-800">
                 {stats.map((stat) => (
                   <div
                     key={stat.id}
                     className="group p-4 rounded-xl bg-white dark:bg-slate-900/50 border border-purple-200 dark:border-slate-800 hover:border-indigo-500/40 transition-colors flex flex-col"
                   >
                     <div className="w-10 h-10 rounded-lg bg-indigo-600/10 dark:bg-indigo-600/10 flex items-center justify-center mb-2">
-                      <stat.icon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                      <stat.icon className="w-5 h-5 text-indigo-600 dark:text-indigo-3" />
                     </div>
                     <p className="text-lg font-bold text-neutral-900 dark:text-white">
                       {stat.value}
                     </p>
-                    <p className="text-xs text-neutral-600 dark:text-slate-400 mt-1 font-medium">
+                    <p className="text-xs text-neutral-600 dark:text-slate-700 mt-1 font-medium">
                       {stat.label}
                     </p>
                   </div>
                 ))}
-              </div>
+              </div> */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-12 border-t border-purple-200 dark:border-slate-800">
+  {stats.map((stat) => (
+    <div
+      key={stat.id}
+      className="group p-6 rounded-2xl bg-white dark:bg-slate-900/60 
+                 border border-purple-200/40 dark:border-slate-800 
+                 hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10
+                 transition-all flex flex-col items-start"
+    >
+      <div className="w-12 h-12 rounded-xl bg-indigo-600/15 dark:bg-indigo-600/15 
+                      flex items-center justify-center mb-3">
+        <stat.icon className="w-6 h-6 text-indigo-600 dark:text-indigo-3" />
+      </div>
+
+      <p className="text-2xl font-bold text-neutral-900 dark:text-white leading-tight">
+        {stat.value}
+      </p>
+
+      <p className="text-sm text-neutral-600 dark:text-slate-700 mt-1 font-medium">
+        {stat.label}
+      </p>
+    </div>
+  ))}
+</div>
+
               <p className="text-[10px] text-neutral-500 dark:text-slate-500 mt-2">
                 *Prototype environment metric.
               </p>
@@ -252,8 +276,8 @@ export default function Home() {
               <div className="relative bg-white dark:bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-purple-200 dark:border-slate-700/50 p-8 shadow-2xl">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-sm text-neutral-600 dark:text-slate-400 font-medium">
+                    <div className="w-3 h-3 bg-emerald-3 rounded-full animate-pulse" />
+                    <span className="text-sm text-neutral-600 dark:text-slate-700 font-medium">
                       Live Market
                     </span>
                   </div>
@@ -273,7 +297,7 @@ export default function Home() {
                         className="bg-neutral-100/70 dark:bg-slate-800/50 rounded-xl p-4 flex items-center justify-between hover:bg-neutral-200 dark:hover:bg-slate-800 transition-colors border border-neutral-200 dark:border-slate-700/30"
                       >
                         <div>
-                          <p className="font-medium text-neutral-700 dark:text-slate-300 text-sm">
+                          <p className="font-medium text-neutral-700 dark:text-slate-70000 text-sm">
                             {m.name}
                           </p>
                           <p className="text-2xl font-bold text-neutral-900 dark:text-white mt-1">
@@ -285,8 +309,8 @@ export default function Home() {
                         <div
                           className={`px-4 py-2 rounded-lg font-semibold ${
                             m.up
-                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                              : "bg-red-500/15 text-red-600 dark:text-red-400"
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-3"
+                              : "bg-red-500/15 text-red-600 dark:text-red-3"
                           }`}
                         >
                           {m.change}
@@ -297,7 +321,7 @@ export default function Home() {
                 )}
 
                 {error && (
-                  <p className="text-xs text-red-400 mt-3">
+                  <p className="text-xs text-red-3 mt-3">
                     Failed to fetch data.{" "}
                     <button
                       className="underline hover:text-red-300"
@@ -313,7 +337,7 @@ export default function Home() {
                     (h, i) => (
                       <div
                         key={i}
-                        className="w-3 bg-gradient-to-t from-blue-500 to-indigo-400 rounded-t transition-all hover:from-blue-400 hover:to-indigo-300"
+                        className="w-3 bg-gradient-to-t from-blue-500 to-indigo-3 rounded-t transition-all hover:from-blue-3 hover:to-indigo-300"
                         style={{ height: `${h}%` }}
                       />
                     )
@@ -327,16 +351,16 @@ export default function Home() {
         {/* Scroll Indicator */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce">
           <div className="w-6 h-10 rounded-full border-2 border-slate-600 flex items-start justify-center p-2">
-            <div className="w-1 h-2 bg-teal-400 rounded-full" />
+            <div className="w-1 h-2 bg-teal-3 rounded-full" />
           </div>
         </div>
       </section>
 
       {/* WHY FINEDGE SECTION */}
-      <section className="relative py-24 bg-white dark:bg-slate-950">
+      <section className="relative pt-12 pb-20 bg-white dark:bg-slate-950">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <span className="text-xs font-semibold tracking-wider uppercase text-indigo-600 dark:text-indigo-300">
+            <span className="text-4xl font-semibold tracking-wider uppercase text-indigo-600 dark:text-indigo-300">
               Why FinEdge
             </span>
             <h2 className="mt-4 text-3xl md:text-4xl font-bold tracking-tight text-neutral-900 dark:text-white">
@@ -345,7 +369,7 @@ export default function Home() {
                 Contextual Intelligence
               </span>
             </h2>
-            <p className="mt-4 text-neutral-600 dark:text-slate-400 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
+            <p className="mt-4 text-neutral-600 dark:text-slate-700 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
               Blending real-time market data, adaptive AI models, and guided
               learning pathways to optimize your financial decision making.
             </p>
@@ -385,7 +409,7 @@ export default function Home() {
             ].map((benefit) => (
               <div
                 key={benefit.title}
-                className="group p-8 rounded-xl bg-white dark:bg-slate-900/60 border-2 border-purple-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-indigo-500/40 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+                className="group p-8 rounded-xl bg-white dark:bg-slate-900/60 border-2 border-purple-200 dark:border-slate-800 hover:border-purple-3 dark:hover:border-indigo-500/40 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
               >
                 <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <benefit.icon className="w-6 h-6 text-white" />
@@ -393,7 +417,7 @@ export default function Home() {
                 <h3 className="text-lg font-semibold mb-3 text-neutral-900 dark:text-white">
                   {benefit.title}
                 </h3>
-                <p className="text-sm leading-relaxed text-neutral-600 dark:text-slate-400">
+                <p className="text-sm leading-relaxed text-neutral-600 dark:text-slate-700">
                   {benefit.desc}
                 </p>
               </div>
@@ -402,7 +426,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TESTIMONIALS SECTION */}
+      
+      {/* GLIMPSE SECTION */}
+      <GlimpseSection />
+
+      {/* TESTIMONIALS SECTION
       <section className="relative py-20 bg-gray-50 dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -412,7 +440,7 @@ export default function Home() {
             <h2 className="mt-4 text-3xl md:text-4xl font-bold tracking-tight text-neutral-900 dark:text-white">
               Trusted by Early Users
             </h2>
-            <p className="mt-4 text-neutral-600 dark:text-slate-400 max-w-2xl mx-auto">
+            <p className="mt-4 text-neutral-600 dark:text-slate-700 max-w-2xl mx-auto">
               Real feedback from investors who've transformed their portfolios
               with FinEdge's AI-powered insights
             </p>
@@ -446,7 +474,7 @@ export default function Home() {
             ].map((testimonial) => (
               <div
                 key={testimonial.name}
-                className="group p-8 rounded-xl bg-white dark:bg-slate-800/60 border-2 border-purple-200 dark:border-slate-700 hover:border-purple-400 dark:hover:border-indigo-500/40 transition-all duration-300 hover:shadow-xl hover:-translate-y-2 flex flex-col"
+                className="group p-8 rounded-xl bg-white dark:bg-slate-800/60 border-2 border-purple-200 dark:border-slate-700 hover:border-purple-3 dark:hover:border-indigo-500/40 transition-all duration-300 hover:shadow-xl hover:-translate-y-2 flex flex-col"
               >
                 <div className="flex items-center mb-6">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-white font-semibold text-sm mr-4">
@@ -456,7 +484,7 @@ export default function Home() {
                     <p className="text-sm font-semibold text-neutral-900 dark:text-white">
                       {testimonial.name}
                     </p>
-                    <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                    <p className="text-xs text-indigo-600 dark:text-indigo-3 font-medium">
                       {testimonial.role}
                     </p>
                     <p className="text-xs text-neutral-500 dark:text-slate-500">
@@ -464,14 +492,14 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-                <blockquote className="text-sm leading-relaxed text-neutral-700 dark:text-slate-300 italic flex-grow">
+                <blockquote className="text-sm leading-relaxed text-neutral-700 dark:text-slate-70000 italic flex-grow">
                   "{testimonial.quote}"
                 </blockquote>
                 <div className="mt-6 flex">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <svg
                       key={star}
-                      className="w-4 h-4 text-yellow-400 fill-current"
+                      className="w-4 h-4 text-yellow-3 fill-current"
                       viewBox="0 0 20 20"
                     >
                       <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
@@ -482,22 +510,22 @@ export default function Home() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
-      {/* FEATURES SECTION */}
+      {/* FEATURES SECTION
       <section className="relative py-24 bg-white dark:bg-slate-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <span className="text-blue-400 font-semibold tracking-wider uppercase text-sm">
+            <span className="text-blue-3 font-semibold tracking-wider uppercase text-sm">
               Features
             </span>
             <h2 className="text-4xl lg:text-5xl font-bold mt-4">
               Powerful Tools for{" "}
-              <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-blue-3 to-indigo-3 bg-clip-text text-transparent">
                 Smart Investing
               </span>
             </h2>
-            <p className="text-xl text-neutral-800 dark:text-slate-400 mt-4 max-w-2xl mx-auto">
+            <p className="text-xl text-neutral-800 dark:text-slate-700 mt-4 max-w-2xl mx-auto">
               Everything you need to make informed investment decisions in
               Indian markets.
             </p>
@@ -517,14 +545,14 @@ export default function Home() {
                   <h3 className="text-lg font-semibold mb-3 text-neutral-900 dark:text-white">
                     {f.title}
                   </h3>
-                  <p className="text-sm text-neutral-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-sm text-neutral-600 dark:text-slate-700 leading-relaxed">
                     {f.short}
                   </p>
                   <button
                     onClick={() =>
                       setExpandedId(expandedId === f.id ? null : f.id)
                     }
-                    className="mt-6 inline-flex items-center text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors whitespace-nowrap text-sm"
+                    className="mt-6 inline-flex items-center text-indigo-600 dark:text-indigo-3 font-medium hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors whitespace-nowrap text-sm"
                   >
                     {expandedId === f.id ? "Show less" : "Learn more"}
                     <ChevronDown
@@ -542,7 +570,7 @@ export default function Home() {
                   }`}
                 >
                   <div className="px-8 pb-8 pt-2 border-t border-slate-700/50">
-                    <p className="text-sm text-neutral-700 dark:text-slate-300 leading-relaxed">
+                    <p className="text-sm text-neutral-700 dark:text-slate-70000 leading-relaxed">
                       {f.long}
                     </p>
                   </div>
@@ -551,7 +579,9 @@ export default function Home() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
+
+
 
       {/* CTA SECTION
       <section className="relative py-24">
@@ -561,7 +591,7 @@ export default function Home() {
               backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM36 0V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
             }} />
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-400/20 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-3/20 rounded-full blur-3xl" />
             <div className="relative z-10">
               <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">Explore FinEdge Today</h2>
               <p className="text-xl text-teal-100 mb-8 max-w-2xl mx-auto">
@@ -583,10 +613,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="grid md:grid-cols-4 gap-12">
             <div className="md:col-span-2 space-y-4">
-              <h3 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 bg-clip-text text-transparent">
+              <h3 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 bg-clip-text text-transparent leading-tight pb-1">
                 FinEdge
               </h3>
-              <p className="text-neutral-600 dark:text-slate-400 max-w-md">
+              <p className="text-neutral-600 dark:text-slate-700 max-w-md">
                 An AI-powered investment analysis platform for Indian markets.
                 Built to demonstrate the potential of machine learning in
                 financial technology.
@@ -597,7 +627,8 @@ export default function Home() {
                     href="https://github.com/Code-Ph0enix/FinEdge"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-[152px] h-10 bg-slate-800 hover:bg-teal-600 rounded-lg flex items-center justify-center gap-2 transition-all hover:scale-110 text-slate-300 hover:text-white"
+                    className="w-[152px] h-10  bg-neutral-200 dark:bg-slate-800 hover:bg-neutral-300 dark:hover:bg-teal-600 rounded-lg flex items-center justify-center gap-2 transition-all hover:scale-105 text-neutral-800 dark:text-slate-300 hover:text-neutral-900 dark:hover:text-white"
+                    // className="w-[152px] h-10 bg-slate-800 hover:bg-teal-600 rounded-lg flex items-center justify-center gap-2 transition-all hover:scale-110 text-slate-70000 hover:text-white"
                   >
                     {/* GitHub Icon */}
                     <svg
@@ -637,7 +668,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio")}
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Dashboard
                   </button>
@@ -645,7 +676,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio")}
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Portfolio
                   </button>
@@ -653,7 +684,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/financial-path")}
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Financial Path
                   </button>
@@ -661,7 +692,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/chatbot")}
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     AI Advisor
                   </button>
@@ -669,7 +700,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/recommendations")}
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Recommendations
                   </button>
@@ -677,7 +708,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/learn")}
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Learn
                   </button>
@@ -685,7 +716,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/money-pulse")}
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Market News
                   </button>
@@ -701,7 +732,7 @@ export default function Home() {
                   <a
                     href="/assets/FinEdge_Report.pdf"
                     download
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Documentation
                   </a>
@@ -711,7 +742,7 @@ export default function Home() {
                     href="/api-docs.html"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     API Reference
                   </a>
@@ -719,7 +750,7 @@ export default function Home() {
                 <li>
                   <a
                     href="mailto:eeshanyajoshi@gmail.com"
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Support
                   </a>
@@ -727,7 +758,7 @@ export default function Home() {
                 <li>
                   <a
                     href="tel:+918169570762"
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
+                    className="text-slate-700 hover:text-blue-900 transition-colors"
                   >
                     Contact
                   </a>
@@ -736,7 +767,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-purple-200 dark:border-slate-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-neutral-700 dark:text-slate-400">
+            <div className="flex items-center gap-2 text-sm text-neutral-700 dark:text-slate-700">
               <span>Made with</span>
               <span className="text-red-500 text-base">♥</span>
               <span>by</span>
@@ -744,7 +775,7 @@ export default function Home() {
                 href="https://github.com/realsanjaysharma"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
+                className="text-indigo-600 dark:text-indigo-3 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
               >
                 Rohit Deshpande
               </a>
@@ -753,7 +784,7 @@ export default function Home() {
                 href="https://github.com/shubhjalui"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
+                className="text-indigo-600 dark:text-indigo-3 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
               >
                 Shubh Jalui
               </a>
@@ -762,7 +793,7 @@ export default function Home() {
                 href="https://github.com/Code-Ph0enix"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
+                className="text-indigo-600 dark:text-indigo-3 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
               >
                 Eeshanya Joshi
               </a>
