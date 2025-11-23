@@ -204,7 +204,7 @@ export default function Home() {
                 </span>
               </h1>
 
-              <p className="text-xl text-neutral-800 dark:text-slate-700 max-w-xl leading-relaxed">
+              <p className="text-xl text-neutral-800 dark:text-slate-400 max-w-xl leading-relaxed">
                 AI-based advisory for Indian markets: adaptive models, portfolio
                 guidance, and contextual learning designed for clarity.
               </p>
@@ -242,7 +242,7 @@ export default function Home() {
                 ))}
               </div> */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-12 border-t border-purple-200 dark:border-slate-800">
-  {stats.map((stat) => (
+    {stats.map((stat) => (
     <div
       key={stat.id}
       className="group p-6 rounded-2xl bg-white dark:bg-slate-900/60 
@@ -252,14 +252,14 @@ export default function Home() {
     >
       <div className="w-12 h-12 rounded-xl bg-indigo-600/15 dark:bg-indigo-600/15 
                       flex items-center justify-center mb-3">
-        <stat.icon className="w-6 h-6 text-indigo-600 dark:text-indigo-3" />
+        <stat.icon className="w-6 h-6 text-indigo-600 dark:text-indigo-300" />
       </div>
 
       <p className="text-2xl font-bold text-neutral-900 dark:text-white leading-tight">
         {stat.value}
       </p>
 
-      <p className="text-sm text-neutral-600 dark:text-slate-700 mt-1 font-medium">
+      <p className="text-sm text-neutral-600 dark:text-slate-400 mt-1 font-medium">
         {stat.label}
       </p>
     </div>
@@ -277,7 +277,7 @@ export default function Home() {
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-emerald-3 rounded-full animate-pulse" />
-                    <span className="text-sm text-neutral-600 dark:text-slate-700 font-medium">
+                    <span className="text-sm text-neutral-600 dark:text-slate-400 font-medium">
                       Live Market
                     </span>
                   </div>
@@ -297,7 +297,7 @@ export default function Home() {
                         className="bg-neutral-100/70 dark:bg-slate-800/50 rounded-xl p-4 flex items-center justify-between hover:bg-neutral-200 dark:hover:bg-slate-800 transition-colors border border-neutral-200 dark:border-slate-700/30"
                       >
                         <div>
-                          <p className="font-medium text-neutral-700 dark:text-slate-70000 text-sm">
+                          <p className="font-medium text-neutral-700 dark:text-slate-400 text-sm">
                             {m.name}
                           </p>
                           <p className="text-2xl font-bold text-neutral-900 dark:text-white mt-1">
@@ -369,7 +369,7 @@ export default function Home() {
                 Contextual Intelligence
               </span>
             </h2>
-            <p className="mt-4 text-neutral-600 dark:text-slate-700 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
+            <p className="mt-4 text-neutral-600 dark:text-slate-400 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
               Blending real-time market data, adaptive AI models, and guided
               learning pathways to optimize your financial decision making.
             </p>
@@ -417,7 +417,7 @@ export default function Home() {
                 <h3 className="text-lg font-semibold mb-3 text-neutral-900 dark:text-white">
                   {benefit.title}
                 </h3>
-                <p className="text-sm leading-relaxed text-neutral-600 dark:text-slate-700">
+                <p className="text-sm leading-relaxed text-neutral-600 dark:text-slate-400">
                   {benefit.desc}
                 </p>
               </div>
@@ -616,7 +616,7 @@ export default function Home() {
               <h3 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 bg-clip-text text-transparent leading-tight pb-1">
                 FinEdge
               </h3>
-              <p className="text-neutral-600 dark:text-slate-700 max-w-md">
+              <p className="text-neutral-600 dark:text-slate-400 max-w-md">
                 An AI-powered investment analysis platform for Indian markets.
                 Built to demonstrate the potential of machine learning in
                 financial technology.
@@ -668,7 +668,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio")}
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Dashboard
                   </button>
@@ -676,7 +676,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio")}
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Portfolio
                   </button>
@@ -684,7 +684,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/financial-path")}
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Financial Path
                   </button>
@@ -692,7 +692,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/chatbot")}
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     AI Advisor
                   </button>
@@ -700,7 +700,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/recommendations")}
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Recommendations
                   </button>
@@ -708,7 +708,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/learn")}
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Learn
                   </button>
@@ -716,7 +716,7 @@ export default function Home() {
                 <li>
                   <button
                     onClick={() => navigate("/portfolio/money-pulse")}
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Market News
                   </button>
@@ -732,7 +732,7 @@ export default function Home() {
                   <a
                     href="/assets/FinEdge_Report.pdf"
                     download
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Documentation
                   </a>
@@ -742,7 +742,7 @@ export default function Home() {
                     href="/api-docs.html"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     API Reference
                   </a>
@@ -750,7 +750,7 @@ export default function Home() {
                 <li>
                   <a
                     href="mailto:eeshanyajoshi@gmail.com"
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Support
                   </a>
@@ -758,7 +758,7 @@ export default function Home() {
                 <li>
                   <a
                     href="tel:+918169570762"
-                    className="text-slate-700 hover:text-blue-900 transition-colors"
+                    className="text-slate-400 hover:text-blue-900 transition-colors"
                   >
                     Contact
                   </a>
@@ -767,7 +767,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-purple-200 dark:border-slate-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-neutral-700 dark:text-slate-700">
+            <div className="flex items-center gap-2 text-sm text-neutral-700 dark:text-slate-400">
               <span>Made with</span>
               <span className="text-red-500 text-base">♥</span>
               <span>by</span>
