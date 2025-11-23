@@ -22,12 +22,12 @@ load_dotenv()
 # Choose the LLM to use
 # Using Gemini 2.0 Flash with strict ReAct formatting
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-pro",
+    model="gemini-2.0-flash",
     google_api_key=os.environ.get("GEMINI_API_KEY"),
-    temperature=0,
-    max_output_tokens=1024
+    temperature=0.7,
 )
 # llm = ChatGroq(model="llama-3.3-70b-versatile")
+from routes.stock_routes import stock_bp
 
 # set my message
 query = """ Should I invest in Cipla pharmaceuticals? """

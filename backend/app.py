@@ -11,9 +11,11 @@ import sys
 import time
 from datetime import datetime
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # 1. Import CORS
 from datetime import datetime, timedelta  # ✅ ADD timedelta
 import logging
 import requests  # ✅ ADD requests
+from dotenv import load_dotenv
 
 
 # =================================================================================================================
@@ -41,6 +43,8 @@ except ImportError:
 
 
 # ===================================================================================================================
+
+load_dotenv()
 
 # NEW - ADDED: MongoDB imports for user data management
 from database import get_database, close_database_connection, Collections, test_connection
@@ -141,6 +145,11 @@ def init_app():
 # def shutdown_database(exception=None):
 #     """Close database connection when app shuts down"""
 #     close_database_connection()
+
+from routes.stock_routes import stock_bp
+
+# ... inside your app setup ...
+app.register_blueprint(stock_bp)
 
 
 @app.route('/', methods=['GET'])
