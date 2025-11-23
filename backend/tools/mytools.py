@@ -232,17 +232,29 @@ def get_current_price(company_name: str) -> str:
                 change = None
                 change_pct = None
         
+        # result = {
+        #     "symbol": symbol,
+        #     "price": round(float(price), 2),
+        #     "previous_close": prev_close,
+        #     "change": round(change, 2) if change else None,
+        #     "change_percent": change_pct,
+        #     "currency": currency,
+        #     "52_week_low": info.get("fiftyTwoWeekLow"),
+        #     "52_week_high": info.get("fiftyTwoWeekHigh"),
+        #     "timestamp": dt.datetime.utcnow().isoformat()
+        # }
         result = {
             "symbol": symbol,
             "price": round(float(price), 2),
-            "previous_close": prev_close,
+            "previous_close": round(float(prev_close), 2) if prev_close else None,
             "change": round(change, 2) if change else None,
             "change_percent": change_pct,
             "currency": currency,
-            "52_week_low": info.get("fiftyTwoWeekLow"),
-            "52_week_high": info.get("fiftyTwoWeekHigh"),
+            "52_week_low": round(float(info.get("fiftyTwoWeekLow")), 2) if info.get("fiftyTwoWeekLow") else None,
+            "52_week_high": round(float(info.get("fiftyTwoWeekHigh")), 2) if info.get("fiftyTwoWeekHigh") else None,
             "timestamp": dt.datetime.utcnow().isoformat()
         }
+
         
         logger.info(f"Successfully fetched price for {symbol}: {price}")
         return json.dumps(result)
