@@ -19,6 +19,7 @@ import os
 import sys
 import logging
 import warnings
+import json
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
@@ -275,6 +276,20 @@ Key areas of expertise:
 Provide balanced, ethical financial advice and acknowledge when certain situations may require consultation with other financial professionals.
 
 If the user provides you with research data from tools (like stock prices, company info, historical data), use it comprehensively in your response. Always cite the data when making recommendations.
+When research_data contains "type": "compound_query":
+- Acknowledge that the user asked about multiple things
+- Break down what they asked into separate questions
+- Offer to help with each one individually
+- Be friendly and guide them to ask separately
+
+Example:
+"I can see you're asking about both Sensex rating and Reliance price! 
+Let me help you with both:
+
+1. For Sensex: Are you looking for its current value, or my analysis/recommendation?
+2. For Reliance: I can get you today's live price
+
+Please ask about each one separately so I can fetch real-time data for you. What would you like to know first?
 
 When answering investment queries:
 1. Consider current market conditions
@@ -506,18 +521,174 @@ def initialize_tools():
 # =====================================================================================
 
 # Minimal company name -> ticker mapping. Extend this in production.
+# Comprehensive company name -> ticker mapping for Indian market
 _TICKER_OVERRIDE = {
-    # common examples; extend as needed
-    "adani green energy": "ADANIGREEN.NS",
+    # Major Indices
+    "nifty": "^NSEI",
+    "nifty 50": "^NSEI",
+    "sensex": "^BSESN",
+    "bse sensex": "^BSESN",
+    "bank nifty": "^NSEBANK",
+    "nifty bank": "^NSEBANK",
+    "nifty it": "^CNXIT",
+    "nifty pharma": "^CNXPHARMA",
+    "nifty auto": "^CNXAUTO",
+    
+    # Top 10 by Market Cap
     "reliance": "RELIANCE.NS",
+    "reliance industries": "RELIANCE.NS",
     "tcs": "TCS.NS",
+    "tata consultancy services": "TCS.NS",
     "hdfc bank": "HDFCBANK.NS",
     "hdfcbank": "HDFCBANK.NS",
+    "icici bank": "ICICIBANK.NS",
+    "icicibank": "ICICIBANK.NS",
     "infosys": "INFY.NS",
-    "reliance industries": "RELIANCE.NS",
-    "nifty": "^NSEI",
-    "sensex": "^BSESN"
+    "infy": "INFY.NS",
+    "bharti airtel": "BHARTIARTL.NS",
+    "airtel": "BHARTIARTL.NS",
+    "itc": "ITC.NS",
+    "sbi": "SBIN.NS",
+    "state bank": "SBIN.NS",
+    "state bank of india": "SBIN.NS",
+    "hindustan unilever": "HINDUNILVR.NS",
+    "hul": "HINDUNILVR.NS",
+    "larsen": "LT.NS",
+    "l&t": "LT.NS",
+    "larsen and toubro": "LT.NS",
+    
+    # Adani Group
+    "adani green": "ADANIGREEN.NS",
+    "adani green energy": "ADANIGREEN.NS",
+    "adani enterprises": "ADANIENT.NS",
+    "adani ports": "ADANIPORTS.NS",
+    "adani power": "ADANIPOWER.NS",
+    "adani transmission": "ADANITRANS.NS",
+    "adani total gas": "ATGL.NS",
+    
+    # Tata Group
+    "tata steel": "TATASTEEL.NS",
+    "tata motors": "TATAMOTORS.NS",
+    "tata power": "TATAPOWER.NS",
+    "tcs": "TCS.NS",
+    "titan": "TITAN.NS",
+    "titan company": "TITAN.NS",
+    "tata consumer": "TATACONSUM.NS",
+    
+    # IT Sector
+    "wipro": "WIPRO.NS",
+    "hcl tech": "HCLTECH.NS",
+    "hcl technologies": "HCLTECH.NS",
+    "tech mahindra": "TECHM.NS",
+    "ltimindtree": "LTIM.NS",
+    "persistent": "PERSISTENT.NS",
+    "coforge": "COFORGE.NS",
+    
+    # Banking & Finance
+    "axis bank": "AXISBANK.NS",
+    "kotak bank": "KOTAKBANK.NS",
+    "kotak mahindra": "KOTAKBANK.NS",
+    "indusind bank": "INDUSINDBK.NS",
+    "yes bank": "YESBANK.NS",
+    "idfc first bank": "IDFCFIRSTB.NS",
+    "bandhan bank": "BANDHANBNK.NS",
+    "bajaj finance": "BAJFINANCE.NS",
+    "bajaj finserv": "BAJAJFINSV.NS",
+    "sbi life": "SBILIFE.NS",
+    "hdfc life": "HDFCLIFE.NS",
+    "icici lombard": "ICICIGI.NS",
+    "icici prudential": "ICICIPRULI.NS",
+    
+    # Automobile
+    "maruti": "MARUTI.NS",
+    "maruti suzuki": "MARUTI.NS",
+    "mahindra": "M&M.NS",
+    "m&m": "M&M.NS",
+    "mahindra and mahindra": "M&M.NS",
+    "bajaj auto": "BAJAJ-AUTO.NS",
+    "hero motocorp": "HEROMOTOCO.NS",
+    "hero": "HEROMOTOCO.NS",
+    "tata motors": "TATAMOTORS.NS",
+    "eicher motors": "EICHERMOT.NS",
+    "tvs motor": "TVSMOTOR.NS",
+    
+    # Pharma
+    "sun pharma": "SUNPHARMA.NS",
+    "sun pharmaceutical": "SUNPHARMA.NS",
+    "dr reddy": "DRREDDY.NS",
+    "dr reddys": "DRREDDY.NS",
+    "cipla": "CIPLA.NS",
+    "divi's lab": "DIVISLAB.NS",
+    "divis laboratories": "DIVISLAB.NS",
+    "biocon": "BIOCON.NS",
+    "lupin": "LUPIN.NS",
+    "aurobindo pharma": "AUROPHARMA.NS",
+    "torrent pharma": "TORNTPHARM.NS",
+    
+    # FMCG & Consumer
+    "britannia": "BRITANNIA.NS",
+    "nestle": "NESTLEIND.NS",
+    "nestle india": "NESTLEIND.NS",
+    "dabur": "DABUR.NS",
+    "godrej consumer": "GODREJCP.NS",
+    "marico": "MARICO.NS",
+    "colgate": "COLPAL.NS",
+    "colgate palmolive": "COLPAL.NS",
+    
+    # Metals & Mining
+    "hindalco": "HINDALCO.NS",
+    "vedanta": "VEDL.NS",
+    "jindal steel": "JINDALSTEL.NS",
+    "jsw steel": "JSWSTEEL.NS",
+    "coal india": "COALINDIA.NS",
+    "nmdc": "NMDC.NS",
+    
+    # Energy & Power
+    "ntpc": "NTPC.NS",
+    "power grid": "POWERGRID.NS",
+    "ongc": "ONGC.NS",
+    "oil and natural gas": "ONGC.NS",
+    "ioc": "IOC.NS",
+    "indian oil": "IOC.NS",
+    "bpcl": "BPCL.NS",
+    "bharat petroleum": "BPCL.NS",
+    "gail": "GAIL.NS",
+    
+    # Telecom & Tech
+    "bharti airtel": "BHARTIARTL.NS",
+    "vodafone idea": "IDEA.NS",
+    "vi": "IDEA.NS",
+    
+    # Retail & E-commerce
+    "dmart": "DMART.NS",
+    "avenue supermarts": "DMART.NS",
+    "trent": "TRENT.NS",
+    
+    # Cement
+    "ultratech cement": "ULTRACEMCO.NS",
+    "ultratech": "ULTRACEMCO.NS",
+    "ambuja cement": "AMBUJACEM.NS",
+    "acc cement": "ACC.NS",
+    "shree cement": "SHREECEM.NS",
+    
+    # Paints
+    "asian paints": "ASIANPAINT.NS",
+    "berger paints": "BERGEPAINT.NS",
+    
+    # Real Estate
+    "dlf": "DLF.NS",
+    "godrej properties": "GODREJPROP.NS",
+    "oberoi realty": "OBEROIRLTY.NS",
+    
+    # Others
+    "pidilite": "PIDILITIND.NS",
+    "pidilite industries": "PIDILITIND.NS",
+    "siemens": "SIEMENS.NS",
+    "bosch": "BOSCHLTD.NS",
+    "havells": "HAVELLS.NS",
+    "voltas": "VOLTAS.NS",
 }
+
 
 def resolve_ticker(query: str) -> str:
     """
@@ -541,6 +712,38 @@ def resolve_ticker(query: str) -> str:
         return simple
     # finally append NSE suffix as a guess
     return simple + ".NS"
+
+def is_compound_query(query: str) -> bool:
+    """
+    Detect if query asks about multiple entities or mixed requests.
+    Returns True if query should be handled conversationally (no tools).
+    """
+    import re
+    
+    indicators = [
+        # Multiple entities with "and"
+        r'\band\b.{1,50}\b(price|value|rating|stock|share)',
+        
+        # Multiple entities with "bhi" (also)
+        r'\b(bhi|also|too)\b.{1,30}\b(price|value|stock)',
+        
+        # Comma-separated entities
+        r',\s*.{1,40}\b(price|stock|value)',
+        
+        # Different request types (rating + price, analysis + data)
+        r'\b(rating|analysis|opinion|recommendation)\b.{1,50}\b(price|value|data)',
+        
+        # Multiple "ka/ki/ke" patterns
+        (r'(?:ka|ki|ke)\s+(?:price|rating|value).{1,50}(?:ka|ki|ke)\s+(?:price|rating|value)')
+    ]
+    
+    for pattern in indicators:
+        if re.search(pattern, query, re.IGNORECASE):
+            logger.info(f"Compound query detected via pattern: {pattern}")
+            return True
+    
+    return False
+
 
 def fetch_stock_price_by_symbol(symbol: str) -> Dict[str, Any]:
     """
@@ -936,7 +1139,107 @@ if react_llm:
     
                     return None
 
+                # ===================================================================================================================================================
+                # NEW METHOD ADDED HERE TO IMPROVE TOOL MATCHING
+                # ===================================================================================================================================================
+                def _extract_financial_entity(self, query_text: str) -> str:
+                    """
+                    Extract company/index name from natural language query (English + Hinglish)
+                    Enhanced with better cleanup and edge case handling
+                    """
+                    import re
+    
+                    query = query_text.lower().strip()
+    
+                    # Handle empty/very short queries
+                    if not query or len(query) < 3:
+                        return query_text.strip()
+    
+                    entity = None
+    
+                    # Pattern 1: "price of X" or "price for X"
+                    match = re.search(r'price\s+(?:of|for)\s+(.+?)(?:\?|$)', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+    
+                    # Pattern 2 ENHANCED: "X stock price" with cleanup
+                    match = re.search(r'(.+?)\s+(?:stock|share)\s+price', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        # Remove common question/command words from the start
+                        entity = re.sub(r'^(what is|tell me|get me|show me|give me|batao|bataiye)\s+', '', entity, flags=re.IGNORECASE).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+    
+                    # Pattern 3: "sensex value" or "nifty points" (explicit financial terms)
+                    match = re.search(r'(sensex|nifty\s*\d*|nifty bank|bank nifty)\s+(?:value|points?|level|trading)', query, re.IGNORECASE)
+                    if match:
+                        return match.group(1).strip()
+    
+                    # Pattern 4 STRICT: Sensex/Nifty with price-intent check
+                    sensex_nifty_match = re.search(r'\b(sensex|nifty\s*\d*|bank\s*nifty|nifty\s*bank)\b', query, re.IGNORECASE)
+                    if sensex_nifty_match:
+                        index_name = sensex_nifty_match.group(1).strip()
+        
+                        price_intent_keywords = [
+                            r'\b(today|current|now|latest|aaj|abhi)\b',
+                            r'\b(kitna|kitne|how much|what is|kya hai)\b',
+                            r'\b(tell me|give me|show me|batao|dikha|bataiye)\b',
+                            r'\b(at|trading|right now|currently)\b'
+                        ]
+        
+                        has_price_intent = any(re.search(pattern, query, re.IGNORECASE) for pattern in price_intent_keywords)
+        
+                        if has_price_intent:
+                            return index_name
+    
+                    # # Pattern 5: Hinglish "X ka price" etc.
+                    # match = re.search(r'(.+?)\s+(?:ka|ki|ke)\s+(?:price|share|stock|value)', query, re.IGNORECASE)
+                    # if match:
+                    #     entity = match.group(1).strip()
+                    #     entity = re.sub(r'\b(kya|hai|batao|bataiye|dijiye|mujhe|aaj|abhi|current|please)\b', '', entity, flags=re.IGNORECASE).strip()
+                    #     if entity and len(entity) > 2:
+                    #         return entity
+                    # Pattern 5 EXPANDED: Hinglish "X ka price/rating/etc."
+                    match = re.search(r'(.+?)\s+(?:ka|ki|ke)\s+(?:price|share|stock|value|rating|performance|analysis)', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        entity = re.sub(r'\b(kya|hai|batao|bataiye|dijiye|mujhe|aaj|abhi|current|please|bhi|de)\b', '', entity, flags=re.IGNORECASE).strip()
+                        if entity and len(entity) > 2:
+                            return entity
 
+    
+                    # Pattern 6: Hinglish "X kitna hai"
+                    match = re.search(r'(.+?)\s+(?:kitna|kitne)\s+(?:hai|points?|par hai)', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        entity = re.sub(r'\b(aaj|abhi|current|kya|today)\b', '', entity, flags=re.IGNORECASE).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+    
+                    # Pattern 7 NEW: "X trading at" or "X is trading"
+                    match = re.search(r'(.+?)\s+(?:is\s+)?trading\s+(?:at|for)', query, re.IGNORECASE)
+                    if match:
+                        entity = match.group(1).strip()
+                        entity = re.sub(r'^(how much|what|is|the)\s+', '', entity, flags=re.IGNORECASE).strip()
+                        if entity and len(entity) > 2:
+                            return entity
+    
+                    # Pattern 8: General cleanup (last resort)
+                    entity = re.sub(r'\b(what|is|the|current|stock|share|price|of|for|today\'?s?|value|today|tell me|give me|show me|get me|how much)\b', 
+                                    '', query, flags=re.IGNORECASE).strip()
+                    entity = re.sub(r'\?', '', entity).strip()
+    
+                    # Final cleanup: remove extra spaces
+                    entity = re.sub(r'\s+', ' ', entity).strip()
+    
+                    if entity and len(entity) > 2:
+                        return entity
+    
+                    # Ultimate fallback
+                    return query_text.strip()
 
                 def invoke(self, payload):
                     # accept {'input': "..."} or a list of messages (compat)
@@ -951,12 +1254,30 @@ if react_llm:
                     except Exception:
                         query_text = str(payload)
 
+                    # tool_name = self._find_tool_for_query(query_text)
+                    # if tool_name:
+                    #     fn = self.tools_map.get(tool_name)
+                    #     try:
+                    #         # Call tool function; many tools accept a single string argument
+                    #         result = fn(query_text)
+
+                    # ============================================================================================================
+                    # REPLACED THIS TOO
+                    # ============================================================================================================
+
                     tool_name = self._find_tool_for_query(query_text)
                     if tool_name:
                         fn = self.tools_map.get(tool_name)
                         try:
-                            # Call tool function; many tools accept a single string argument
-                            result = fn(query_text)
+                            # ✅ Extract entity for price/financial tools
+                            if tool_name in ["get_current_price", "get_company_info"]:
+                                entity = self._extract_financial_entity(query_text)
+                                logger.info(f"Calling {tool_name} with extracted entity: '{entity}'")
+                                result = fn(entity)
+                            else:
+                                # For other tools, pass full query
+                                result = fn(query_text)
+
                         except TypeError:
                             try:
                                 result = fn(query_text, None)
@@ -1040,6 +1361,31 @@ def get_agent_research(user_query: str, session_id: str = 'default') -> Dict[str
 
     try:
         logger.info(f"[{session_id}] Starting research for query: {user_query[:100]}...")
+                # NEW: Check for compound queries first
+        if is_compound_query(user_query):
+            logger.info(f"[{session_id}] Compound query detected - skipping tool usage")
+
+            # ==================================================================================================================
+            # UNCOMMENT THIS IF THE OTHER ONE FAILS
+            # ==================================================================================================================
+            
+            # return json.dumps({
+            #     "type": "compound_query",
+            #     "message": "This query asks about multiple topics. I'll need to address them separately.",
+            #     "detected_entities": "multiple",
+            #     "suggestion": "Please ask about each topic separately for accurate real-time data."
+            # })
+            return {
+                'success': True,
+                'output': json.dumps({
+                    "type": "compound_query",
+                    "message": "This query asks about multiple topics. I'll need to address them separately.",
+                    "detected_entities": "multiple",
+                    "suggestion": "Please ask about each topic separately for accurate real-time data."
+                }),
+                'intermediate_steps': [],
+                'error': None
+            }
 
         # Invoke agent using compatibility helper
         result = _invoke_agent_executor(agent_executor, user_query)
