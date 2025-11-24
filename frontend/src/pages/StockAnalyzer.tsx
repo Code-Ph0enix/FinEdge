@@ -24,7 +24,8 @@ export interface StockAnalysisResponse {
 
 const analyzeStock = async (query: string): Promise<StockAnalysisResponse> => {
   // Assuming your Flask backend is running on port 5000
-  const API_URL = 'http://localhost:5000/api'; 
+  // const API_URL = 'http://localhost:5000/api'; 
+  const API_URL = 'https://finedge-backend.onrender.com'; 
   
   try {
     const response = await axios.post(`${API_URL}/analyze`, { query });

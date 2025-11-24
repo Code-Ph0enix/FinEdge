@@ -1,5 +1,5 @@
 // Learning API utility functions for FinEdge
-const API_BASE_URL = 'http://localhost:5000/api/learning';
+const API_BASE_URL = 'https://finedge-backend.onrender.com';
 
 export interface CourseProgress {
   course_id: string;
