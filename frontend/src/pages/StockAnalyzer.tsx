@@ -28,7 +28,7 @@ const analyzeStock = async (query: string): Promise<StockAnalysisResponse> => {
   const API_URL = 'https://finedge-backend.onrender.com'; 
   
   try {
-    const response = await axios.post(`${API_URL}/analyze`, { query });
+    const response = await axios.post(`${API_URL}/api/analyze`, { query });
     return response.data;
   } catch (error: any) {
     console.error('Error analyzing stock:', error);
