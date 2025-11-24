@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { SERVER_URL } from '../utils/utils';
+import SectionHeading from '../components/SectionHeading';
 
 const parseCurrency = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -463,8 +464,8 @@ const Portfolio = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Portfolio Overview</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Your complete financial snapshot</p>
+          <SectionHeading as="h1" gradient className="mb-1">Portfolio Overview</SectionHeading>
+          <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">Your complete financial snapshot</p>
         </div>
       </div>
 
@@ -477,7 +478,7 @@ const Portfolio = () => {
           className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-6 text-white shadow-lg"
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">My Wealth</h3>
+            <h3 className="text-base font-semibold tracking-tight">My Wealth</h3>
             <Wallet className="w-6 h-6" />
           </div>
           <p className="text-4xl font-bold mb-2">₹{netWorth.toLocaleString('en-IN')}</p>
@@ -520,7 +521,7 @@ const Portfolio = () => {
           className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
         >
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Asset Allocation</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white tracking-tight">Asset Allocation</h3>
             <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
               Rebalance
             </button>
@@ -570,7 +571,7 @@ const Portfolio = () => {
           transition={{ delay: 0.2 }}
           className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
         >
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Portfolio Health</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 tracking-tight">Portfolio Health</h3>
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Overall Health</span>
@@ -720,7 +721,7 @@ const Portfolio = () => {
           className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
         >
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Investment Goals</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white tracking-tight">Investment Goals</h3>
             <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
               View All
             </button>
@@ -782,7 +783,7 @@ const Portfolio = () => {
           transition={{ delay: 0.8 }}
           className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
         >
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Portfolio Performance</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 tracking-tight">Portfolio Performance</h3>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={performanceData}>
               <defs>
@@ -818,7 +819,7 @@ const Portfolio = () => {
           transition={{ delay: 0.9 }}
           className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
         >
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Income vs Expenses</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 tracking-tight">Income vs Expenses</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={incomeVsExpensesData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
@@ -847,7 +848,7 @@ const Portfolio = () => {
           className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
         >
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Risk Analysis</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white tracking-tight">Risk Analysis</h3>
             <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 px-3 py-1 rounded-full font-semibold">
               Risk Score: {riskScore.toFixed(0)}/100
             </span>
@@ -893,7 +894,7 @@ const Portfolio = () => {
           className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
         >
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Liabilities Overview</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white tracking-tight">Liabilities Overview</h3>
             <span className="text-xs text-gray-500 dark:text-gray-400">
               Total Debt: ₹{totalLiabilities.toLocaleString('en-IN')}
             </span>
@@ -965,7 +966,7 @@ const Portfolio = () => {
         className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
       >
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Recent Activity</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white tracking-tight">Recent Activity</h3>
           {activityItems.length > 4 && (
             <button
               onClick={() => setShowAllActivity((prev) => !prev)}

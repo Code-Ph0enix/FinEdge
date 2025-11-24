@@ -28,7 +28,7 @@ function App() {
       <ThemeProvider>
         <TourProvider>
           <Router>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors">
               <Routes>
                 <Route path="/" element={<><Navbar /><Home /></>} />
                 <Route path="/sign-in" element={<AuthComponent />} />

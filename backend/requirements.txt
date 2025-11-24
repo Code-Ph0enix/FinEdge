@@ -19,3 +19,12 @@ pymongo
 pydantic
 dnspython
 bcrypt
+matplotlib
+langgraph
+prophet
+seaborn
+hyperopt
+setuptools
+scikit-learn
+plotly
+langchain_google_genai

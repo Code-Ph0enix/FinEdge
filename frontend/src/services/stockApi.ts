@@ -8,6 +8,20 @@ import {
   MarketSummaryResponse 
 } from '../types';
 
+// --- NEW INTERFACE FOR AI ANALYSIS (UPDATED FOR 4 IMAGES) ---
+export interface StockAnalysisResponse {
+  success: boolean;
+  analysis: string;
+  // CHANGED: Expects a dictionary of 4 images
+  images: {
+    price_history: string | null;
+    daily_returns: string | null;
+    holdout_pred: string | null;
+    future_forecast: string | null;
+  };
+  error?: string;
+}
+
 // Legacy interface for backward compatibility
 export interface MarketSummary {
   NIFTY: MarketIndex;
@@ -161,6 +175,34 @@ class StockApiService {
   }
 
   /**
+   * --- NEW METHOD: Analyze Stock with AI ---
+   * Calls the /api/analyze endpoint defined in stock_routes.py
+   */
+  async analyzeStock(query: string): Promise<StockAnalysisResponse> {
+    // We typically don't cache this as user queries change often, 
+    // but you could add caching here if desired.
+    try {
+      const response = await axios.post(`${this.baseURL}/api/analyze`, { query });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error analyzing stock:', error);
+      // Return a structured error response with empty images object
+      // so the UI can handle it gracefully without crashing.
+      return {
+        success: false,
+        analysis: '',
+        images: {
+            price_history: null,
+            daily_returns: null,
+            holdout_pred: null,
+            future_forecast: null
+        },
+        error: error.response?.data?.error || error.message || 'Failed to communicate with analysis server'
+      };
+    }
+  }
+
+  /**
    * Clear all cache
    */
   clearCache(): void {
@@ -186,3 +228,6 @@ export const analyzePortfolio = (stocks: Array<{symbol: string; boughtPrice: num
   stockApiService.analyzePortfolio(stocks);
 export const getMarketSummary = () => stockApiService.getMarketSummary();
 export const getComprehensiveMarketSummary = () => stockApiService.getComprehensiveMarketSummary();
+
+// --- NEW EXPORT ---
+export const analyzeStock = (query: string) => stockApiService.analyzeStock(query);
