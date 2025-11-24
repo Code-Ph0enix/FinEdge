@@ -147,9 +147,10 @@ def init_app():
 #     close_database_connection()
 
 from routes.stock_routes import stock_bp
-
 # ... inside your app setup ...
 app.register_blueprint(stock_bp)
+# ⭐ CRITICAL FIX FOR CORS ⭐
+CORS(stock_bp, resources={r"*": {"origins": "https://finedge-ai.vercel.app"}})
 
 
 @app.route('/', methods=['GET'])
