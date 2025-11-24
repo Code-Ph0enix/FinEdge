@@ -1,10 +1,15 @@
 import os
 import sys
 from flask import Blueprint, request, jsonify
+from flask_cors import CORS
 from agent.stock_agent import StockAgent
 
 # Create a Blueprint for the stock routes
 stock_bp = Blueprint('stock_bp', __name__)
+
+# ⭐ Correct: Apply CORS before registering blueprint
+CORS(stock_bp, resources={r"/api/*": {"origins": "https://finedge-ai.vercel.app"}})
+
 
 @stock_bp.route('/api/analyze', methods=['POST'])
 def analyze_stock():
