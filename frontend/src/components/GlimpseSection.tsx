@@ -1,16 +1,16 @@
 import { useState } from "react";
 
 const screenshots = [
-  "src/assets/screenshots/screenshot-1.png",
-  "src/assets/screenshots/screenshot-2.png",
-  "src/assets/screenshots/screenshot-3.png",
-  "src/assets/screenshots/screenshot-4.png",
-  "src/assets/screenshots/screenshot-5.png",
-  "src/assets/screenshots/screenshot-6.png",
-  "src/assets/screenshots/screenshot-7.png",
-  "src/assets/screenshots/screenshot-8.png",
-  "src/assets/screenshots/screenshot-9.png",
-  "src/assets/screenshots/screenshot-10.png",
+  "/screenshots/screenshot-1.png",
+  "/screenshots/screenshot-2.png",
+  "/screenshots/screenshot-3.png",
+  "/screenshots/screenshot-4.png",
+  "/screenshots/screenshot-5.png",
+  "/screenshots/screenshot-6.png",
+  "/screenshots/screenshot-7.png",
+  "/screenshots/screenshot-8.png",
+  "/screenshots/screenshot-9.png",
+  "/screenshots/screenshot-10.png",
 ];
 
 
